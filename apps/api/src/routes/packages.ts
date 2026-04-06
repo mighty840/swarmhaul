@@ -1,13 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db/client.js";
+import { broadcast } from "../services/ws-broadcaster.js";
 
 export async function packageRoutes(app: FastifyInstance) {
-  app.get("/", async (req, reply) => {
-    const packages = await prisma.package.findMany({
+  app.get("/", async () => {
+    return prisma.package.findMany({
       orderBy: { listedAt: "desc" },
-      include: { swarm: true },
+      include: { swarm: { include: { legs: true } } },
     });
-    return packages;
   });
 
   app.get<{ Params: { id: string } }>("/:id", async (req, reply) => {
@@ -33,7 +33,23 @@ export async function packageRoutes(app: FastifyInstance) {
     };
 
     const pkg = await prisma.package.create({ data: body });
-    // TODO: broadcast PACKAGE_LISTED via WS
+
+    broadcast({
+      type: "PACKAGE_LISTED",
+      package: {
+        id: pkg.id,
+        shipper: pkg.shipperPubkey,
+        origin: { lat: pkg.originLat, lng: pkg.originLng },
+        destination: { lat: pkg.destLat, lng: pkg.destLng },
+        description: pkg.description,
+        weightKg: pkg.weightKg,
+        volumeLitres: pkg.volumeLitres,
+        maxBudgetSol: pkg.maxBudgetSol,
+        status: "listed",
+        listedAt: pkg.listedAt,
+      },
+    });
+
     return reply.code(201).send(pkg);
   });
 
