@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Environment
+.env
+!.env.example
+
+# Solana
+packages/solana/target/
+packages/solana/.anchor/
+packages/solana/test-ledger/
+
+# IDE
+.vscode/
+.idea/
+
+# Keys — NEVER commit
+*-keypair.json
+keypair.json
+*.key

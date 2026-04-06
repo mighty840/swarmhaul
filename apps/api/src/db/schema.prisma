@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Package {
+  id            String    @id @default(uuid())
+  shipperPubkey String
+  originLat     Float
+  originLng     Float
+  destLat       Float
+  destLng       Float
+  description   String
+  weightKg      Float
+  volumeLitres  Float
+  maxBudgetSol  Float
+  status        String    @default("listed")
+  listedAt      DateTime  @default(now())
+  deliveredAt   DateTime?
+  swarm         Swarm?
+}
+
+model Swarm {
+  id            String   @id @default(uuid())
+  packageId     String   @unique
+  package       Package  @relation(fields: [packageId], references: [id])
+  escrowAccount String
+  totalCostSol  Float
+  status        String   @default("forming")
+  formedAt      DateTime @default(now())
+  legs          Leg[]
+}
+
+model Leg {
+  id                   String    @id @default(uuid())
+  swarmId              String
+  swarm                Swarm     @relation(fields: [swarmId], references: [id])
+  agentPubkey          String
+  pickupLat            Float
+  pickupLng            Float
+  dropoffLat           Float
+  dropoffLng           Float
+  distanceKm           Float
+  estimatedDurationMin Int
+  agreedPaymentSol     Float
+  status               String    @default("pending")
+  completedAt          DateTime?
+}
+
+model VehicleProfile {
+  agentPubkey         String   @id
+  ownerName           String
+  carMake             String
+  carModel            String
+  bootVolumeLitres    Float
+  fuelConsumptionL100 Float
+  fuelCostEurPerLitre Float
+  hourlyRateEur       Float
+  isAutonomous        Boolean  @default(false)
+  registeredAt        DateTime @default(now())
+}
+
+model Bid {
+  id                   String   @id @default(uuid())
+  packageId            String
+  agentPubkey          String
+  pickupLat            Float
+  pickupLng            Float
+  dropoffLat           Float
+  dropoffLng           Float
+  distanceKm           Float
+  estimatedDurationMin Int
+  costSol              Float
+  reasoning            String?
+  expiresAt            DateTime
+  createdAt            DateTime @default(now())
+}
+
+model AgentReputation {
+  agentPubkey        String   @id
+  legsCompleted      Int      @default(0)
+  legsAccepted       Int      @default(0)
+  avgDeliveryTimeSec Float    @default(0)
+  reliabilityScore   Float    @default(50)
+  updatedAt          DateTime @updatedAt
+}
+
+model NegotiationMessage {
+  id              String   @id @default(uuid())
+  packageId       String
+  fromAgent       String
+  toAgent         String?
+  action          String
+  proposedCostSol Float?
+  reasoning       String?
+  createdAt       DateTime @default(now())
+}
