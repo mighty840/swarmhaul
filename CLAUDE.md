@@ -29,7 +29,25 @@ turbo test             # vitest for api + agent
 cd packages/solana && anchor test   # Anchor tests (needs localnet)
 ```
 
-## NEVER commit
-- Solana keypairs or seed phrases
-- .env files with real secrets
-- Colosseum Copilot PAT token
+## Code style
+- Many small files over few large files (200-400 lines typical, 800 max)
+- Organize by feature/domain, not by type
+- No console.log in production code (use Fastify logger in API)
+- Input validation with Zod at API boundaries
+- Immutability preferred — never mutate objects or arrays in shared state
+- Proper error handling with try/catch, never swallow errors silently
+- TypeScript strict mode everywhere
+
+## Security
+- NEVER hardcode secrets — use environment variables
+- NEVER commit: Solana keypairs, seed phrases, .env files, Colosseum PAT
+- Validate all user inputs at API boundary (Zod schemas)
+- Parameterized queries only (Prisma handles this)
+- Anchor constraint checks on all instructions
+- Agent keypair loaded from filesystem, never embedded in code
+
+## Testing
+- Unit tests for cost model, itinerary matching, route optimization
+- Anchor tests for all Solana instructions (happy path + edge cases)
+- API integration tests against test database
+- Run `turbo test` before committing
