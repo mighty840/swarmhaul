@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use crate::state::{LegAccount, PackageAccount, PackageStatus, SwarmAccount, SwarmStatus};
+use crate::state::{
+    AgentReputationAccount, LegAccount, PackageAccount, PackageStatus, SwarmAccount, SwarmStatus,
+};
 use crate::instructions::form_swarm::SwarmError;
 
 #[derive(Accounts)]
@@ -33,6 +35,17 @@ pub struct ConfirmLeg<'info> {
         bump = package_account.vault_bump,
     )]
     pub vault: SystemAccount<'info>,
+
+    /// Reputation PDA for the courier — must match the leg's bound courier (signer).
+    /// Mutated to bump legs_completed and recompute reliability_score.
+    /// Created on first assignment in assign_leg, so it always exists by confirm_leg time.
+    #[account(
+        mut,
+        seeds = [b"reputation", courier.key().as_ref()],
+        bump = courier_reputation.bump,
+        constraint = courier_reputation.agent == courier.key() @ SwarmError::NotAssignedCourier,
+    )]
+    pub courier_reputation: Account<'info, AgentReputationAccount>,
 
     pub system_program: Program<'info, System>,
 }
@@ -67,6 +80,11 @@ pub fn handler(ctx: Context<ConfirmLeg>) -> Result<()> {
     if package.status == PackageStatus::SwarmForming {
         package.status = PackageStatus::InTransit;
     }
+
+    // Reputation: bump legs_completed + recompute reliability_score
+    let rep = &mut ctx.accounts.courier_reputation;
+    rep.legs_completed = rep.legs_completed.checked_add(1).ok_or(SwarmError::Overflow)?;
+    rep.recompute_score();
 
     // PDA-signed transfer of the EXACT pre-stored amount
     let signer_seeds: &[&[&[u8]]] = &[&[b"vault", package_key.as_ref(), &[vault_bump]]];

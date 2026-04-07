@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::state::{LegAccount, PackageAccount, PackageStatus, SwarmAccount, SwarmStatus};
+use crate::state::{AgentReputationAccount, LegAccount, PackageAccount, SwarmAccount, SwarmStatus};
 use crate::instructions::form_swarm::SwarmError;
 
 #[derive(Accounts)]
@@ -29,6 +29,17 @@ pub struct AssignLeg<'info> {
     )]
     pub leg_account: Account<'info, LegAccount>,
 
+    /// Reputation PDA for the courier being assigned.
+    /// Created on first assignment, mutated to bump legs_accepted.
+    #[account(
+        init_if_needed,
+        payer = coordinator,
+        space = 8 + AgentReputationAccount::INIT_SPACE,
+        seeds = [b"reputation", courier.as_ref()],
+        bump,
+    )]
+    pub courier_reputation: Account<'info, AgentReputationAccount>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -42,6 +53,7 @@ pub fn handler(
 
     require!(leg_index < swarm.total_legs, SwarmError::LegIndexOutOfBounds);
     require!(swarm.assigned_legs < swarm.total_legs, SwarmError::AllLegsAssigned);
+    require!(payment_lamports > 0, SwarmError::ZeroLegs);
 
     let leg = &mut ctx.accounts.leg_account;
     leg.swarm = swarm.key();
@@ -51,16 +63,32 @@ pub fn handler(
     leg.confirmed = false;
     leg.bump = ctx.bumps.leg_account;
 
-    swarm.assigned_legs = swarm.assigned_legs.checked_add(1).ok_or(SwarmError::Overflow)?;
+    swarm.assigned_legs = swarm
+        .assigned_legs
+        .checked_add(1)
+        .ok_or(SwarmError::Overflow)?;
 
-    // Once all legs are assigned, swarm becomes Active
     if swarm.assigned_legs == swarm.total_legs {
         swarm.status = SwarmStatus::Active;
     }
 
+    // Reputation: bump legs_accepted (bound to a verified coordinator assignment)
+    let rep = &mut ctx.accounts.courier_reputation;
+    if rep.agent == Pubkey::default() {
+        rep.agent = courier;
+        rep.bump = ctx.bumps.courier_reputation;
+    }
+    rep.legs_accepted = rep
+        .legs_accepted
+        .checked_add(1)
+        .ok_or(SwarmError::Overflow)?;
+    rep.recompute_score();
+
+    let leg_key = leg.key();
+    let swarm_key = swarm.key();
     emit!(LegAssigned {
-        swarm: swarm.key(),
-        leg: leg.key(),
+        swarm: swarm_key,
+        leg: leg_key,
         leg_index,
         courier,
         payment_lamports,

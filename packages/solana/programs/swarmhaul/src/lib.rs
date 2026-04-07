@@ -62,18 +62,4 @@ pub mod swarmhaul {
     pub fn cancel_package(ctx: Context<CancelPackage>) -> Result<()> {
         instructions::cancel_package::handler(ctx)
     }
-
-    pub fn update_reputation(
-        ctx: Context<UpdateReputation>,
-        legs_completed_delta: u32,
-        legs_accepted_delta: u32,
-        delivery_time_sec: u64,
-    ) -> Result<()> {
-        instructions::update_reputation::handler(
-            ctx,
-            legs_completed_delta,
-            legs_accepted_delta,
-            delivery_time_sec,
-        )
-    }
 }
