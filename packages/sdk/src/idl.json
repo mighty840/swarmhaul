@@ -1,0 +1,1075 @@
+{
+  "address": "GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg",
+  "metadata": {
+    "name": "swarmhaul",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "assign_leg",
+      "discriminator": [
+        185,
+        118,
+        31,
+        201,
+        122,
+        119,
+        72,
+        138
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "package_account"
+        },
+        {
+          "name": "swarm_account",
+          "writable": true
+        },
+        {
+          "name": "leg_account",
+          "writable": true
+        },
+        {
+          "name": "courier_reputation",
+          "docs": [
+            "Reputation PDA for the courier being assigned.",
+            "Created on first assignment, mutated to bump legs_accepted."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "courier"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "leg_index",
+          "type": "u8"
+        },
+        {
+          "name": "courier",
+          "type": "pubkey"
+        },
+        {
+          "name": "payment_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancel_package",
+      "discriminator": [
+        138,
+        119,
+        179,
+        242,
+        67,
+        111,
+        90,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "shipper",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "package_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "package_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "confirm_leg",
+      "discriminator": [
+        20,
+        162,
+        162,
+        208,
+        74,
+        135,
+        57,
+        95
+      ],
+      "accounts": [
+        {
+          "name": "courier",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "leg_account",
+          "writable": true
+        },
+        {
+          "name": "swarm_account",
+          "writable": true
+        },
+        {
+          "name": "package_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "package_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "courier_reputation",
+          "docs": [
+            "Reputation PDA for the courier — must match the leg's bound courier (signer).",
+            "Mutated to bump legs_completed and recompute reliability_score.",
+            "Created on first assignment in assign_leg, so it always exists by confirm_leg time."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "courier"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "form_swarm",
+      "discriminator": [
+        72,
+        177,
+        48,
+        194,
+        232,
+        85,
+        49,
+        67
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "package_account",
+          "writable": true
+        },
+        {
+          "name": "swarm_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  119,
+                  97,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "package_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "total_legs",
+          "type": "u8"
+        },
+        {
+          "name": "total_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "list_package",
+      "discriminator": [
+        212,
+        125,
+        69,
+        31,
+        90,
+        126,
+        173,
+        8
+      ],
+      "accounts": [
+        {
+          "name": "shipper",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "package_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  99,
+                  107,
+                  97,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "package_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "via PDA-signed CPI in confirm_leg / settle / cancel_package."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "package_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "package_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        },
+        {
+          "name": "max_budget_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "coordinator",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "register_vehicle",
+      "discriminator": [
+        249,
+        150,
+        162,
+        65,
+        231,
+        141,
+        147,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vehicle_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "hourly_rate_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "boot_volume_litres",
+          "type": "u16"
+        },
+        {
+          "name": "is_autonomous",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "settle",
+      "discriminator": [
+        175,
+        42,
+        185,
+        87,
+        144,
+        131,
+        102,
+        212
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "swarm_account",
+          "writable": true
+        },
+        {
+          "name": "package_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "package_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shipper",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AgentReputationAccount",
+      "discriminator": [
+        145,
+        238,
+        141,
+        55,
+        126,
+        96,
+        161,
+        56
+      ]
+    },
+    {
+      "name": "LegAccount",
+      "discriminator": [
+        47,
+        123,
+        191,
+        151,
+        181,
+        225,
+        159,
+        32
+      ]
+    },
+    {
+      "name": "PackageAccount",
+      "discriminator": [
+        180,
+        2,
+        252,
+        204,
+        29,
+        23,
+        200,
+        44
+      ]
+    },
+    {
+      "name": "SwarmAccount",
+      "discriminator": [
+        238,
+        178,
+        186,
+        135,
+        34,
+        248,
+        176,
+        46
+      ]
+    },
+    {
+      "name": "VehicleProfileAccount",
+      "discriminator": [
+        142,
+        128,
+        241,
+        39,
+        43,
+        13,
+        78,
+        233
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "LegAssigned",
+      "discriminator": [
+        158,
+        248,
+        160,
+        106,
+        77,
+        225,
+        103,
+        219
+      ]
+    },
+    {
+      "name": "LegConfirmed",
+      "discriminator": [
+        24,
+        142,
+        187,
+        217,
+        49,
+        28,
+        114,
+        189
+      ]
+    },
+    {
+      "name": "PackageCancelled",
+      "discriminator": [
+        196,
+        161,
+        158,
+        137,
+        20,
+        174,
+        247,
+        93
+      ]
+    },
+    {
+      "name": "PackageListed",
+      "discriminator": [
+        101,
+        202,
+        249,
+        140,
+        197,
+        51,
+        51,
+        80
+      ]
+    },
+    {
+      "name": "SwarmFormed",
+      "discriminator": [
+        191,
+        11,
+        168,
+        84,
+        166,
+        137,
+        183,
+        10
+      ]
+    },
+    {
+      "name": "SwarmSettled",
+      "discriminator": [
+        7,
+        75,
+        190,
+        4,
+        43,
+        32,
+        31,
+        113
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ZeroBudget",
+      "msg": "Budget must be greater than zero"
+    }
+  ],
+  "types": [
+    {
+      "name": "AgentReputationAccount",
+      "docs": [
+        "On-chain reputation for an autonomous agent.",
+        "",
+        "Mutated only by `assign_leg` (legs_accepted++) and `confirm_leg`",
+        "(legs_completed++, total_delivery_time_sec += elapsed). There is no",
+        "standalone `update_reputation` instruction — every counter movement",
+        "is bound to a verified protocol action.",
+        "",
+        "`reliability_score` is computed on read as",
+        "floor(legs_completed / legs_accepted * 100)",
+        "and exposed as a stored field for cheap leaderboard queries.",
+        "",
+        "PDA seeds: [b\"reputation\", agent_pubkey]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "legs_completed",
+            "type": "u32"
+          },
+          {
+            "name": "legs_accepted",
+            "type": "u32"
+          },
+          {
+            "name": "total_delivery_time_sec",
+            "type": "u64"
+          },
+          {
+            "name": "reliability_score",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LegAccount",
+      "docs": [
+        "Per-leg state, created by the coordinator via `assign_leg`.",
+        "",
+        "Binds a specific courier pubkey to a specific leg of a specific swarm",
+        "with a fixed payment amount, eliminating the prior class of vault-drain",
+        "attacks where any signer could call confirm_leg unbounded times.",
+        "",
+        "PDA seeds: [b\"leg\", swarm_pubkey, &[leg_index]]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "leg_index",
+            "type": "u8"
+          },
+          {
+            "name": "courier",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "confirmed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LegAssigned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "leg",
+            "type": "pubkey"
+          },
+          {
+            "name": "leg_index",
+            "type": "u8"
+          },
+          {
+            "name": "courier",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LegConfirmed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "leg",
+            "type": "pubkey"
+          },
+          {
+            "name": "courier",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "completed_legs",
+            "type": "u8"
+          },
+          {
+            "name": "total_legs",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PackageAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "shipper",
+            "type": "pubkey"
+          },
+          {
+            "name": "coordinator",
+            "docs": [
+              "Authority that can form/assign/settle the swarm on behalf of the shipper.",
+              "Set at list_package time. May be the shipper themselves or a trusted protocol coordinator."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "package_id",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "max_budget_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "PackageStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "vault_bump",
+            "docs": [
+              "PDA bump for the escrow vault, stored to prevent recomputation drift across instructions."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PackageCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "package",
+            "type": "pubkey"
+          },
+          {
+            "name": "refunded_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PackageListed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "package",
+            "type": "pubkey"
+          },
+          {
+            "name": "shipper",
+            "type": "pubkey"
+          },
+          {
+            "name": "coordinator",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_budget_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PackageStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Listed"
+          },
+          {
+            "name": "SwarmForming"
+          },
+          {
+            "name": "InTransit"
+          },
+          {
+            "name": "Delivered"
+          },
+          {
+            "name": "Failed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "package",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_legs",
+            "type": "u8"
+          },
+          {
+            "name": "assigned_legs",
+            "docs": [
+              "Number of LegAccount PDAs that have been assigned (matches total_legs once Active)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "completed_legs",
+            "type": "u8"
+          },
+          {
+            "name": "total_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "SwarmStatus"
+              }
+            }
+          },
+          {
+            "name": "formed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmFormed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "package",
+            "type": "pubkey"
+          },
+          {
+            "name": "coordinator",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_legs",
+            "type": "u8"
+          },
+          {
+            "name": "total_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "package",
+            "type": "pubkey"
+          },
+          {
+            "name": "surplus_returned_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Forming"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Settled"
+          },
+          {
+            "name": "Failed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VehicleProfileAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "hourly_rate_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "boot_volume_litres",
+            "type": "u16"
+          },
+          {
+            "name": "is_autonomous",
+            "type": "bool"
+          },
+          {
+            "name": "registered_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
