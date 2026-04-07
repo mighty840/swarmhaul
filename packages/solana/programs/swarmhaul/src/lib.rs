@@ -15,8 +15,9 @@ pub mod swarmhaul {
         ctx: Context<ListPackage>,
         package_id: [u8; 16],
         max_budget_lamports: u64,
+        coordinator: Pubkey,
     ) -> Result<()> {
-        instructions::list_package::handler(ctx, package_id, max_budget_lamports)
+        instructions::list_package::handler(ctx, package_id, max_budget_lamports, coordinator)
     }
 
     pub fn register_vehicle(
@@ -41,12 +42,17 @@ pub mod swarmhaul {
         instructions::form_swarm::handler(ctx, total_legs, total_lamports)
     }
 
-    pub fn join_swarm(ctx: Context<JoinSwarm>, leg_index: u8) -> Result<()> {
-        instructions::join_swarm::handler(ctx, leg_index)
+    pub fn assign_leg(
+        ctx: Context<AssignLeg>,
+        leg_index: u8,
+        courier: Pubkey,
+        payment_lamports: u64,
+    ) -> Result<()> {
+        instructions::assign_leg::handler(ctx, leg_index, courier, payment_lamports)
     }
 
-    pub fn confirm_leg(ctx: Context<ConfirmLeg>, payment_lamports: u64) -> Result<()> {
-        instructions::confirm_leg::handler(ctx, payment_lamports)
+    pub fn confirm_leg(ctx: Context<ConfirmLeg>) -> Result<()> {
+        instructions::confirm_leg::handler(ctx)
     }
 
     pub fn settle(ctx: Context<Settle>) -> Result<()> {

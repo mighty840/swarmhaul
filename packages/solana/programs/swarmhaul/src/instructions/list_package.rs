@@ -3,7 +3,7 @@ use anchor_lang::system_program;
 use crate::state::{PackageAccount, PackageStatus};
 
 #[derive(Accounts)]
-#[instruction(package_id: [u8; 16], max_budget_lamports: u64)]
+#[instruction(package_id: [u8; 16], max_budget_lamports: u64, coordinator: Pubkey)]
 pub struct ListPackage<'info> {
     #[account(mut)]
     pub shipper: Signer<'info>,
@@ -17,7 +17,8 @@ pub struct ListPackage<'info> {
     )]
     pub package_account: Account<'info, PackageAccount>,
 
-    /// CHECK: PDA vault that holds the escrow funds
+    /// CHECK: PDA vault that holds the escrow funds. System-owned, lamports moved
+    /// via PDA-signed CPI in confirm_leg / settle / cancel_package.
     #[account(
         mut,
         seeds = [b"vault", package_account.key().as_ref()],
@@ -32,16 +33,21 @@ pub fn handler(
     ctx: Context<ListPackage>,
     package_id: [u8; 16],
     max_budget_lamports: u64,
+    coordinator: Pubkey,
 ) -> Result<()> {
+    require!(max_budget_lamports > 0, ListPackageError::ZeroBudget);
+
     let package = &mut ctx.accounts.package_account;
     package.shipper = ctx.accounts.shipper.key();
+    package.coordinator = coordinator;
     package.package_id = package_id;
     package.max_budget_lamports = max_budget_lamports;
     package.status = PackageStatus::Listed;
     package.created_at = Clock::get()?.unix_timestamp;
+    package.vault_bump = ctx.bumps.vault;
     package.bump = ctx.bumps.package_account;
 
-    // Transfer budget to vault
+    // Lock budget into vault PDA
     system_program::transfer(
         CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -53,6 +59,26 @@ pub fn handler(
         max_budget_lamports,
     )?;
 
-    msg!("Package listed: {:?}", package_id);
+    emit!(PackageListed {
+        package: package.key(),
+        shipper: package.shipper,
+        coordinator: package.coordinator,
+        max_budget_lamports,
+    });
+
     Ok(())
+}
+
+#[event]
+pub struct PackageListed {
+    pub package: Pubkey,
+    pub shipper: Pubkey,
+    pub coordinator: Pubkey,
+    pub max_budget_lamports: u64,
+}
+
+#[error_code]
+pub enum ListPackageError {
+    #[msg("Budget must be greater than zero")]
+    ZeroBudget,
 }

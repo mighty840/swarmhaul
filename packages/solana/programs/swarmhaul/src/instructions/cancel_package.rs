@@ -20,7 +20,7 @@ pub struct CancelPackage<'info> {
     #[account(
         mut,
         seeds = [b"vault", package_account.key().as_ref()],
-        bump,
+        bump = package_account.vault_bump,
     )]
     pub vault: SystemAccount<'info>,
 
@@ -28,19 +28,15 @@ pub struct CancelPackage<'info> {
 }
 
 pub fn handler(ctx: Context<CancelPackage>) -> Result<()> {
+    let package_key = ctx.accounts.package_account.key();
+    let vault_bump = ctx.accounts.package_account.vault_bump;
+    let balance = ctx.accounts.vault.lamports();
+
     let package = &mut ctx.accounts.package_account;
     package.status = PackageStatus::Failed;
 
-    // Return all funds from vault to shipper using PDA signing
-    let balance = ctx.accounts.vault.lamports();
     if balance > 0 {
-        let package_key = ctx.accounts.package_account.key();
-        let vault_bump = ctx.bumps.vault;
-        let signer_seeds: &[&[&[u8]]] = &[&[
-            b"vault",
-            package_key.as_ref(),
-            &[vault_bump],
-        ]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"vault", package_key.as_ref(), &[vault_bump]]];
 
         system_program::transfer(
             CpiContext::new_with_signer(
@@ -55,8 +51,18 @@ pub fn handler(ctx: Context<CancelPackage>) -> Result<()> {
         )?;
     }
 
-    msg!("Package cancelled. {} lamports returned.", balance);
+    emit!(PackageCancelled {
+        package: package_key,
+        refunded_lamports: balance,
+    });
+
     Ok(())
+}
+
+#[event]
+pub struct PackageCancelled {
+    pub package: Pubkey,
+    pub refunded_lamports: u64,
 }
 
 #[error_code]
