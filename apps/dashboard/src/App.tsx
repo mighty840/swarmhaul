@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useSwarmData } from "./hooks/useSwarm.js";
+import { StatusBar } from "./components/StatusBar.js";
+import { Ticker } from "./components/Ticker.js";
 import { SwarmMap } from "./pages/SwarmMap.js";
 import { ShipperView } from "./pages/ShipperView.js";
 import { CourierView } from "./pages/CourierView.js";
@@ -12,54 +14,18 @@ export default function App() {
   const data = useSwarmData();
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold tracking-tight">SwarmHaul</h1>
-          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono">
-            devnet
-          </span>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-              data.connected
-                ? "bg-green-500/20 text-green-400"
-                : "bg-red-500/20 text-red-400"
-            }`}
-          >
-            {data.connected ? "live" : "offline"}
-          </span>
-        </div>
-        <nav className="flex gap-1">
-          {(
-            [
-              ["map", "Map"],
-              ["shipper", "Ship"],
-              ["courier", "Courier"],
-              ["economy", "Economy"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setView(key)}
-              className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                view === key
-                  ? "bg-white/10 text-white font-medium"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-        <button className="bg-purple-600 hover:bg-purple-500 px-4 py-1.5 rounded text-sm font-medium transition-colors">
-          Connect Wallet
-        </button>
-      </header>
+    <div className="min-h-screen flex flex-col">
+      <StatusBar
+        connected={data.connected}
+        packagesActive={data.stats?.packages.active ?? 0}
+        bidsTotal={data.stats?.bids.total ?? 0}
+        agentsTotal={data.stats?.agents.total ?? 0}
+        view={view}
+        onViewChange={setView}
+      />
+      <Ticker events={data.wsEvents} />
 
-      <main className="p-4">
-        {view === "map" && <SwarmMap packages={data.packages} />}
-        {view === "shipper" && <ShipperView />}
-        {view === "courier" && <CourierView leaderboard={data.leaderboard} />}
+      <main className="flex-1 p-4 lg:p-6">
         {view === "economy" && (
           <EconomyView
             stats={data.stats}
@@ -68,7 +34,19 @@ export default function App() {
             wsEvents={data.wsEvents}
           />
         )}
+        {view === "map" && <SwarmMap packages={data.packages} />}
+        {view === "shipper" && <ShipperView />}
+        {view === "courier" && <CourierView leaderboard={data.leaderboard} />}
       </main>
+
+      <footer className="border-t border-[var(--color-line)] bg-[var(--color-graphite)] px-4 h-7 flex items-center justify-between text-[9px] tracking-[0.16em] uppercase text-[var(--color-dim)]">
+        <div>SWARMHAUL ▸ MULTI-AGENT COORDINATION PROTOCOL ▸ SOLANA</div>
+        <div className="flex items-center gap-4">
+          <span>RFB-05 // RFB-02 // RFB-01</span>
+          <span className="text-[var(--color-faint)]">│</span>
+          <span className="text-[var(--color-phosphor)]">⏵ READY</span>
+        </div>
+      </footer>
     </div>
   );
 }

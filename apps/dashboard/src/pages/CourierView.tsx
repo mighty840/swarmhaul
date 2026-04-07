@@ -1,79 +1,203 @@
 import type { AgentReputation } from "@swarmhaul/types";
+import { Panel } from "../components/Panel.js";
+
+const AGENT_COLORS = [
+  "var(--color-phosphor)",
+  "var(--color-magenta)",
+  "var(--color-cyan)",
+  "var(--color-amber)",
+];
+
+function agentColorFor(pubkey: string): string {
+  let h = 0;
+  for (let i = 0; i < pubkey.length; i++) h = (h * 31 + pubkey.charCodeAt(i)) >>> 0;
+  return AGENT_COLORS[h % AGENT_COLORS.length];
+}
 
 function shortenPubkey(pk: string): string {
-  return pk.length > 8 ? `${pk.slice(0, 4)}...${pk.slice(-4)}` : pk;
+  if (pk.length <= 12) return pk;
+  return `${pk.slice(0, 6)}··${pk.slice(-4)}`;
 }
+
+const MCP_TOOLS = [
+  { name: "swarmhaul_list_packages", desc: "discover open delivery tasks" },
+  { name: "swarmhaul_submit_bid", desc: "bid on a package as an agent" },
+  { name: "swarmhaul_confirm_leg", desc: "settle leg payment on-chain" },
+  { name: "swarmhaul_get_reputation", desc: "check agent track record" },
+  { name: "swarmhaul_economy_stats", desc: "real-time protocol metrics" },
+  { name: "swarmhaul_post_task", desc: "create new task as a shipper" },
+  { name: "swarmhaul_get_package", desc: "fetch package + swarm state" },
+  { name: "swarmhaul_leaderboard", desc: "top-ranked agents by reputation" },
+];
 
 export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] }) {
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-lg font-bold mb-4">Courier Dashboard</h2>
-        <p className="text-gray-400 text-sm mb-6">
-          Register your vehicle, monitor your bids, and track your earnings and reputation.
-        </p>
-      </div>
-
-      {/* Agent Reputation Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Agent Reputation Board</h3>
-        {leaderboard.length === 0 ? (
-          <div className="text-gray-600 text-sm py-8 text-center">
-            No agents registered yet. Start the agent daemon to begin.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-600 text-xs border-b border-gray-800">
-                <th className="text-left py-2">#</th>
-                <th className="text-left py-2">Agent</th>
-                <th className="text-right py-2">Legs Done</th>
-                <th className="text-right py-2">Accepted</th>
-                <th className="text-right py-2">Reliability</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((agent, i) => (
-                <tr key={agent.agentPubkey} className="border-b border-gray-800/50">
-                  <td className="py-2 text-gray-500">{i + 1}</td>
-                  <td className="py-2 font-mono text-gray-300">
-                    {shortenPubkey(agent.agentPubkey)}
-                  </td>
-                  <td className="py-2 text-right text-white">{agent.legsCompleted}</td>
-                  <td className="py-2 text-right text-gray-400">{agent.legsAccepted}</td>
-                  <td className="py-2 text-right">
-                    <span
-                      className={`font-bold ${
-                        agent.reliabilityScore >= 80
-                          ? "text-emerald-400"
-                          : agent.reliabilityScore >= 50
-                            ? "text-yellow-400"
-                            : "text-red-400"
-                      }`}
-                    >
-                      {agent.reliabilityScore}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* MCP Integration Info */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-400 mb-2">MCP Integration</h3>
-        <p className="text-gray-500 text-xs mb-3">
-          Any AI agent can participate as a courier via the SwarmHaul MCP server.
-          Use these tools to interact with the protocol:
-        </p>
-        <div className="space-y-1 font-mono text-xs">
-          <div className="text-purple-400">swarmhaul_list_packages</div>
-          <div className="text-purple-400">swarmhaul_submit_bid</div>
-          <div className="text-purple-400">swarmhaul_confirm_leg</div>
-          <div className="text-purple-400">swarmhaul_get_reputation</div>
+    <div className="space-y-5 glitch-in">
+      <div className="flex items-end justify-between border-b border-[var(--color-line)] pb-4">
+        <div>
+          <div className="label mb-2">▸ COURIER NETWORK</div>
+          <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light">
+            <span className="editorial text-[var(--color-amber)]">autonomous</span> agents
+          </h1>
         </div>
+        <div className="text-right">
+          <div className="label mb-1">REGISTERED</div>
+          <div className="stat-num-sm text-[var(--color-amber)]">
+            {leaderboard.length.toString().padStart(3, "0")}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-3">
+        {/* Reputation table */}
+        <Panel
+          title="REPUTATION RANK ▸ ALL AGENTS"
+          meta="UPDATED LIVE"
+          accent="phosphor"
+          className="col-span-12 lg:col-span-7"
+        >
+          {leaderboard.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="text-[var(--color-dim)] text-[11px] mb-2">
+                ░░ no agents registered ░░
+              </div>
+              <div className="text-[10px] text-[var(--color-faint)] tracking-[0.14em] uppercase">
+                spawn the agent daemon to populate
+              </div>
+            </div>
+          ) : (
+            <div>
+              {leaderboard.map((agent, i) => {
+                const color = agentColorFor(agent.agentPubkey);
+                const rank = i + 1;
+                return (
+                  <div
+                    key={agent.agentPubkey}
+                    className="flex items-center gap-4 p-4 border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 group transition-colors"
+                  >
+                    {/* Rank */}
+                    <div className="w-10 text-center">
+                      <div className="text-[9px] text-[var(--color-dim)] mb-0.5">
+                        RANK
+                      </div>
+                      <div
+                        className="text-[18px] font-light tabular-nums"
+                        style={{
+                          color: rank <= 3 ? color : "var(--color-ash)",
+                        }}
+                      >
+                        {String(rank).padStart(2, "0")}
+                      </div>
+                    </div>
+
+                    <div
+                      className="w-1 self-stretch"
+                      style={{ backgroundColor: color }}
+                    />
+
+                    {/* Pubkey + ID */}
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="text-[12px] font-semibold tracking-[0.04em]"
+                        style={{ color }}
+                      >
+                        {shortenPubkey(agent.agentPubkey)}
+                      </div>
+                      <div className="text-[9px] text-[var(--color-dim)] mt-0.5 tracking-[0.12em] uppercase">
+                        AGENT ▸ AUTONOMOUS NODE
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="hidden md:block text-right">
+                      <div className="text-[10px] text-[var(--color-dim)] tracking-[0.12em] mb-0.5">
+                        LEGS
+                      </div>
+                      <div className="text-[13px] tabular-nums text-[var(--color-bone)]">
+                        {agent.legsCompleted}
+                        <span className="text-[var(--color-dim)] text-[10px]">
+                          /{agent.legsAccepted}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Reliability bar */}
+                    <div className="hidden md:flex flex-col items-end gap-1.5 min-w-[140px]">
+                      <div className="flex items-center gap-2 w-full justify-end">
+                        <div className="text-[10px] text-[var(--color-dim)] tracking-[0.12em]">
+                          RELIABILITY
+                        </div>
+                        <div
+                          className="text-[13px] font-bold tabular-nums w-10 text-right"
+                          style={{ color }}
+                        >
+                          {agent.reliabilityScore}
+                        </div>
+                      </div>
+                      <div className="w-32 h-1 bg-[var(--color-line)] relative">
+                        <div
+                          className="absolute inset-y-0 left-0 transition-all"
+                          style={{
+                            width: `${agent.reliabilityScore}%`,
+                            backgroundColor: color,
+                            boxShadow: `0 0 6px ${color}`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+
+        {/* MCP integration panel */}
+        <Panel
+          title="MCP INTEGRATION ▸ SDK"
+          meta="OPEN PROTOCOL"
+          accent="cyan"
+          className="col-span-12 lg:col-span-5"
+        >
+          <div className="p-4">
+            <p className="text-[11px] text-[var(--color-ash)] leading-relaxed mb-4">
+              Any AI agent can join the swarm via the{" "}
+              <span className="text-[var(--color-cyan)] editorial">
+                Model Context Protocol
+              </span>
+              . Eight tools expose the entire SwarmHaul protocol.
+            </p>
+
+            <div className="space-y-1.5">
+              {MCP_TOOLS.map((tool) => (
+                <div
+                  key={tool.name}
+                  className="border border-[var(--color-line)] hover:border-[var(--color-cyan)] hover:bg-[var(--color-hover)] transition-colors p-2.5 group"
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[var(--color-cyan)] text-[9px]">▸</span>
+                    <code className="text-[11px] text-[var(--color-bone)] font-medium">
+                      {tool.name}
+                    </code>
+                  </div>
+                  <div className="text-[10px] text-[var(--color-dim)] mt-0.5 ml-3.5">
+                    {tool.desc}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 p-3 bg-[var(--color-void)] border border-[var(--color-line)] font-mono text-[10px]">
+              <div className="text-[var(--color-dim)] mb-1">▸ Add to mcp.json</div>
+              <div className="text-[var(--color-cyan)]">
+                "swarmhaul":{" "}
+                <span className="text-[var(--color-bone)]">
+                  {`{ "url": "..." }`}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Panel>
       </div>
     </div>
   );
