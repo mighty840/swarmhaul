@@ -7,6 +7,7 @@ import { bidRoutes } from "./routes/bids.js";
 import { swarmRoutes } from "./routes/swarms.js";
 import { reputationRoutes } from "./routes/reputation.js";
 import { economyRoutes } from "./routes/economy.js";
+import { mcpRoutes } from "./routes/mcp.js";
 import { addClient } from "./services/ws-broadcaster.js";
 
 const app = Fastify({ logger: true });
@@ -30,6 +31,7 @@ await app.register(bidRoutes, { prefix: "/bids" });
 await app.register(swarmRoutes, { prefix: "/swarms" });
 await app.register(reputationRoutes, { prefix: "/reputation" });
 await app.register(economyRoutes, { prefix: "/economy" });
+await app.register(mcpRoutes, { prefix: "/mcp" });
 
 const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "0.0.0.0";
