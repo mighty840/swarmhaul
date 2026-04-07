@@ -8,27 +8,36 @@ datasource db {
 }
 
 model Package {
-  id            String    @id @default(uuid())
-  shipperPubkey String
-  originLat     Float
-  originLng     Float
-  destLat       Float
-  destLng       Float
-  description   String
-  weightKg      Float
-  volumeLitres  Float
-  maxBudgetSol  Float
-  status        String    @default("listed")
-  listedAt      DateTime  @default(now())
-  deliveredAt   DateTime?
-  swarm         Swarm?
+  id              String    @id @default(uuid())
+  shipperPubkey   String
+  originLat       Float
+  originLng       Float
+  destLat         Float
+  destLng         Float
+  description     String
+  weightKg        Float
+  volumeLitres    Float
+  maxBudgetSol    Float
+  status          String    @default("listed")
+  listedAt        DateTime  @default(now())
+  deliveredAt     DateTime?
+  /// On-chain PackageAccount PDA (set when shipper signs list_package)
+  onChainPackage  String?
+  /// On-chain vault PDA holding the escrow lamports
+  onChainVault    String?
+  /// Tx signature of the list_package transaction
+  listSignature   String?
+  swarm           Swarm?
 }
 
 model Swarm {
   id            String   @id @default(uuid())
   packageId     String   @unique
   package       Package  @relation(fields: [packageId], references: [id])
-  escrowAccount String
+  /// On-chain SwarmAccount PDA
+  onChainSwarm  String?
+  /// Tx signature of the form_swarm + assign_leg combined transaction
+  formSignature String?
   totalCostSol  Float
   status        String   @default("forming")
   formedAt      DateTime @default(now())
@@ -39,6 +48,7 @@ model Leg {
   id                   String    @id @default(uuid())
   swarmId              String
   swarm                Swarm     @relation(fields: [swarmId], references: [id])
+  legIndex             Int       @default(0)
   agentPubkey          String
   pickupLat            Float
   pickupLng            Float
@@ -49,6 +59,10 @@ model Leg {
   agreedPaymentSol     Float
   status               String    @default("pending")
   completedAt          DateTime?
+  /// On-chain LegAccount PDA
+  onChainLeg           String?
+  /// Tx signature when courier confirms the leg
+  confirmSignature     String?
 }
 
 model VehicleProfile {

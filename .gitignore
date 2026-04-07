@@ -11,6 +11,7 @@ dist/
 packages/solana/target/
 packages/solana/.anchor/
 packages/solana/test-ledger/
+test-ledger/
 
 # IDE
 .vscode/

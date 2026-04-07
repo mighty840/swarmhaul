@@ -1,146 +1,254 @@
+import { PublicKey } from "@solana/web3.js";
+import { coordinatorFormAndAssignSwarm, coordinatorSettleSwarm } from "@swarmhaul/sdk";
 import { prisma } from "../db/client.js";
 import { broadcast } from "./ws-broadcaster.js";
 import { findOptimalRelayChain } from "./route-optimizer.js";
-import type { Swarm, Leg } from "@swarmhaul/types";
+import { getSolana, explorerTxUrl } from "./solana.js";
 
-const SWARM_FORMATION_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const SWARM_FORMATION_TTL_MS = 15 * 60 * 1000;
 const MIN_BIDS_FOR_EVALUATION = 1;
+const SOL_TO_LAMPORTS = 1_000_000_000n;
+
+function solToLamports(sol: number): bigint {
+  return BigInt(Math.round(sol * 1_000_000_000));
+}
 
 /**
- * Called after a new bid is submitted.
- * Checks if we can form a viable relay chain for the package.
+ * Called after a new bid is submitted. If a viable relay chain exists,
+ * forms the swarm both in the database AND on-chain via form_swarm +
+ * assign_leg in a single Solana transaction signed by the coordinator.
+ *
+ * Wrapped in a Prisma serializable transaction to prevent duplicate
+ * swarm creation under concurrent bid storms.
  */
 export async function evaluateSwarmFormation(packageId: string): Promise<void> {
-  const pkg = await prisma.package.findUnique({
-    where: { id: packageId },
-    include: { swarm: true },
-  });
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const pkg = await tx.package.findUnique({
+        where: { id: packageId },
+        include: { swarm: true },
+      });
 
-  if (!pkg || pkg.status !== "listed" || pkg.swarm) return;
+      if (!pkg || pkg.status !== "listed" || pkg.swarm) return null;
+      if (!pkg.onChainPackage) {
+        console.warn(
+          `[coordinator] package ${packageId} has no on-chain account yet — skipping`,
+        );
+        return null;
+      }
 
-  const bids = await prisma.bid.findMany({
-    where: {
-      packageId,
-      expiresAt: { gt: new Date() },
+      const bids = await tx.bid.findMany({
+        where: { packageId, expiresAt: { gt: new Date() } },
+      });
+      if (bids.length < MIN_BIDS_FOR_EVALUATION) return null;
+
+      const chain = findOptimalRelayChain(
+        { lat: pkg.originLat, lng: pkg.originLng },
+        { lat: pkg.destLat, lng: pkg.destLng },
+        bids.map((b) => ({
+          bidId: b.id,
+          agentPubkey: b.agentPubkey,
+          pickupLat: b.pickupLat,
+          pickupLng: b.pickupLng,
+          dropoffLat: b.dropoffLat,
+          dropoffLng: b.dropoffLng,
+          costSol: b.costSol,
+          distanceKm: b.distanceKm,
+        })),
+        pkg.maxBudgetSol,
+      );
+
+      if (!chain) return null;
+
+      // Mark package status atomically; the on-chain call happens AFTER
+      // commit so we can't double-form even under race conditions.
+      const swarm = await tx.swarm.create({
+        data: {
+          packageId,
+          totalCostSol: chain.totalCostSol,
+          status: "forming",
+          legs: {
+            create: chain.bids.map((bid, index) => ({
+              legIndex: index,
+              agentPubkey: bid.agentPubkey,
+              pickupLat: bid.pickupLat,
+              pickupLng: bid.pickupLng,
+              dropoffLat: bid.dropoffLat,
+              dropoffLng: bid.dropoffLng,
+              distanceKm: bid.distanceKm,
+              estimatedDurationMin: Math.round((bid.distanceKm / 30) * 60),
+              agreedPaymentSol: bid.costSol,
+              status: "pending",
+            })),
+          },
+        },
+        include: { legs: true },
+      });
+
+      await tx.package.update({
+        where: { id: packageId },
+        data: { status: "swarm_forming" },
+      });
+
+      return { pkg, swarm, chain };
     },
-  });
-
-  if (bids.length < MIN_BIDS_FOR_EVALUATION) return;
-
-  // Build relay chain from bids
-  const origin = { lat: pkg.originLat, lng: pkg.originLng };
-  const destination = { lat: pkg.destLat, lng: pkg.destLng };
-
-  const chain = findOptimalRelayChain(
-    origin,
-    destination,
-    bids.map((b) => ({
-      bidId: b.id,
-      agentPubkey: b.agentPubkey,
-      pickupLat: b.pickupLat,
-      pickupLng: b.pickupLng,
-      dropoffLat: b.dropoffLat,
-      dropoffLng: b.dropoffLng,
-      costSol: b.costSol,
-      distanceKm: b.distanceKm,
-    })),
-    pkg.maxBudgetSol,
+    { isolationLevel: "Serializable", timeout: 10_000 },
   );
 
-  if (!chain) return;
+  if (!result) return;
+  const { pkg, swarm, chain } = result;
 
-  // Create swarm with legs
-  const swarm = await prisma.swarm.create({
-    data: {
-      packageId,
-      escrowAccount: `swarm-escrow-${packageId}`, // TODO: real PDA address
-      totalCostSol: chain.totalCostSol,
-      status: "forming",
-      legs: {
-        create: chain.bids.map((bid, index) => ({
-          agentPubkey: bid.agentPubkey,
-          pickupLat: bid.pickupLat,
-          pickupLng: bid.pickupLng,
-          dropoffLat: bid.dropoffLat,
-          dropoffLng: bid.dropoffLng,
-          distanceKm: bid.distanceKm,
-          estimatedDurationMin: Math.round((bid.distanceKm / 30) * 60),
-          agreedPaymentSol: bid.costSol,
+  // Now make the on-chain call. If this fails, we mark the swarm as failed
+  // but don't roll back the DB row (lets us retry / debug).
+  try {
+    const { sdk, coordinator } = getSolana();
+    const onChainPkg = new PublicKey(pkg.onChainPackage!);
+
+    const { swarm: swarmPda, signature } = await coordinatorFormAndAssignSwarm(
+      sdk,
+      coordinator,
+      onChainPkg,
+      solToLamports(chain.totalCostSol),
+      chain.bids.map((bid) => ({
+        courier: new PublicKey(bid.agentPubkey),
+        paymentLamports: solToLamports(bid.costSol),
+      })),
+    );
+
+    // Persist on-chain addresses + per-leg PDAs
+    await prisma.swarm.update({
+      where: { id: swarm.id },
+      data: {
+        onChainSwarm: swarmPda.toBase58(),
+        formSignature: signature,
+      },
+    });
+
+    // Update each leg with its on-chain address
+    const { legPda } = await import("@swarmhaul/sdk");
+    for (const leg of swarm.legs) {
+      const [lPda] = legPda(swarmPda, leg.legIndex);
+      await prisma.leg.update({
+        where: { id: leg.id },
+        data: { onChainLeg: lPda.toBase58() },
+      });
+    }
+
+    console.log(
+      `[coordinator] swarm formed on-chain: ${swarmPda.toBase58()} — ${explorerTxUrl(signature)}`,
+    );
+
+    broadcast({
+      type: "SWARM_FORMED",
+      swarm: {
+        id: swarm.id,
+        packageId: swarm.packageId,
+        legs: swarm.legs.map((l) => ({
+          id: l.id,
+          swarmId: l.swarmId,
+          agentPubkey: l.agentPubkey,
+          pickupLocation: { lat: l.pickupLat, lng: l.pickupLng },
+          dropoffLocation: { lat: l.dropoffLat, lng: l.dropoffLng },
+          distanceKm: l.distanceKm,
+          estimatedDurationMin: l.estimatedDurationMin,
+          agreedPaymentSol: l.agreedPaymentSol,
           status: "pending",
         })),
+        totalCostSol: swarm.totalCostSol,
+        escrowAccount: swarmPda.toBase58(),
+        formedAt: swarm.formedAt,
+        status: "forming",
       },
-    },
-    include: { legs: true },
-  });
+    });
 
-  // Update package status
-  await prisma.package.update({
-    where: { id: packageId },
-    data: { status: "swarm_forming" },
-  });
-
-  // Broadcast swarm formation
-  broadcast({
-    type: "SWARM_FORMED",
-    swarm: {
-      id: swarm.id,
-      packageId: swarm.packageId,
-      legs: swarm.legs.map((l) => ({
-        id: l.id,
-        swarmId: l.swarmId,
-        agentPubkey: l.agentPubkey,
-        pickupLocation: { lat: l.pickupLat, lng: l.pickupLng },
-        dropoffLocation: { lat: l.dropoffLat, lng: l.dropoffLng },
-        distanceKm: l.distanceKm,
-        estimatedDurationMin: l.estimatedDurationMin,
-        agreedPaymentSol: l.agreedPaymentSol,
-        status: l.status as "pending" | "active" | "completed",
-      })),
-      totalCostSol: swarm.totalCostSol,
-      escrowAccount: swarm.escrowAccount,
-      formedAt: swarm.formedAt,
-      status: swarm.status as "forming",
-    },
-  });
-
-  // Notify winning agents
-  for (const bid of chain.bids) {
-    broadcast({
-      type: "BID_RECEIVED",
-      bid: {
-        id: bid.bidId,
-        packageId,
-        agentPubkey: bid.agentPubkey,
-        proposedLeg: {
-          id: "",
-          swarmId: swarm.id,
+    for (const bid of chain.bids) {
+      broadcast({
+        type: "BID_RECEIVED",
+        bid: {
+          id: bid.bidId,
+          packageId,
           agentPubkey: bid.agentPubkey,
-          pickupLocation: { lat: bid.pickupLat, lng: bid.pickupLng },
-          dropoffLocation: { lat: bid.dropoffLat, lng: bid.dropoffLng },
-          distanceKm: bid.distanceKm,
-          estimatedDurationMin: Math.round((bid.distanceKm / 30) * 60),
-          agreedPaymentSol: bid.costSol,
-          status: "pending",
+          proposedLeg: {
+            id: "",
+            swarmId: swarm.id,
+            agentPubkey: bid.agentPubkey,
+            pickupLocation: { lat: bid.pickupLat, lng: bid.pickupLng },
+            dropoffLocation: { lat: bid.dropoffLat, lng: bid.dropoffLng },
+            distanceKm: bid.distanceKm,
+            estimatedDurationMin: Math.round((bid.distanceKm / 30) * 60),
+            agreedPaymentSol: bid.costSol,
+            status: "pending",
+          },
+          costSol: bid.costSol,
+          expiresAt: new Date(Date.now() + SWARM_FORMATION_TTL_MS),
         },
-        costSol: bid.costSol,
-        expiresAt: new Date(Date.now() + SWARM_FORMATION_TTL_MS),
-      },
+      });
+    }
+  } catch (err) {
+    console.error("[coordinator] on-chain swarm formation failed", err);
+    await prisma.swarm.update({
+      where: { id: swarm.id },
+      data: { status: "failed" },
+    });
+    await prisma.package.update({
+      where: { id: packageId },
+      data: { status: "listed" }, // allow retry
     });
   }
 }
 
 /**
- * Mark a leg as completed and check if swarm is done.
+ * Called via webhook after a courier confirms their leg ON-CHAIN
+ * (the courier must sign confirm_leg directly — the API only mirrors
+ * the resulting state and triggers settlement when all legs are done).
+ *
+ * Wrapped in serializable tx to prevent double-broadcast under concurrent
+ * confirmations.
  */
 export async function confirmLegCompletion(
   legId: string,
   agentPubkey: string,
+  confirmSignature?: string,
 ): Promise<void> {
-  const leg = await prisma.leg.update({
-    where: { id: legId },
-    data: { status: "completed", completedAt: new Date() },
-    include: { swarm: { include: { legs: true, package: true } } },
-  });
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const updatedLeg = await tx.leg.update({
+        where: { id: legId },
+        data: {
+          status: "completed",
+          completedAt: new Date(),
+          confirmSignature,
+        },
+      });
+
+      // Re-query inside the transaction so we see this leg's update
+      const swarm = await tx.swarm.findUnique({
+        where: { id: updatedLeg.swarmId },
+        include: { legs: true, package: true },
+      });
+      if (!swarm) return null;
+
+      const allComplete = swarm.legs.every((l) => l.status === "completed");
+      const wasAlreadySettled = swarm.status === "settled";
+
+      if (allComplete && !wasAlreadySettled) {
+        await tx.swarm.update({
+          where: { id: swarm.id },
+          data: { status: "settled" },
+        });
+        await tx.package.update({
+          where: { id: swarm.packageId },
+          data: { status: "delivered", deliveredAt: new Date() },
+        });
+      }
+
+      return { leg: updatedLeg, swarm, allComplete: allComplete && !wasAlreadySettled };
+    },
+    { isolationLevel: "Serializable", timeout: 10_000 },
+  );
+
+  if (!result) return;
+  const { leg, swarm, allComplete } = result;
 
   broadcast({
     type: "LEG_COMPLETED",
@@ -157,40 +265,25 @@ export async function confirmLegCompletion(
     },
   });
 
-  // Update reputation
-  await prisma.agentReputation.upsert({
-    where: { agentPubkey },
-    create: {
-      agentPubkey,
-      legsCompleted: 1,
-      legsAccepted: 1,
-      reliabilityScore: 100,
-    },
-    update: {
-      legsCompleted: { increment: 1 },
-      reliabilityScore: 100, // simplified — recalculate properly later
-    },
-  });
-
-  // Check if all legs are complete
-  const allComplete = leg.swarm.legs.every(
-    (l) => l.id === legId || l.status === "completed",
-  );
-
-  if (allComplete) {
-    await prisma.swarm.update({
-      where: { id: leg.swarmId },
-      data: { status: "settled" },
-    });
-
-    await prisma.package.update({
-      where: { id: leg.swarm.packageId },
-      data: { status: "delivered", deliveredAt: new Date() },
-    });
+  if (allComplete && swarm.onChainSwarm && swarm.package.onChainPackage) {
+    // Trigger on-chain settle
+    try {
+      const { sdk, coordinator } = getSolana();
+      const sig = await coordinatorSettleSwarm(
+        sdk,
+        coordinator,
+        new PublicKey(swarm.package.onChainPackage),
+        new PublicKey(swarm.onChainSwarm),
+        new PublicKey(swarm.package.shipperPubkey),
+      );
+      console.log(`[coordinator] swarm settled on-chain — ${explorerTxUrl(sig)}`);
+    } catch (err) {
+      console.error("[coordinator] on-chain settle failed", err);
+    }
 
     broadcast({
       type: "PACKAGE_DELIVERED",
-      packageId: leg.swarm.packageId,
+      packageId: swarm.packageId,
     });
   }
 }
