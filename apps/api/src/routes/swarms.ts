@@ -45,7 +45,15 @@ export async function swarmRoutes(app: FastifyInstance) {
 
       const leg = await prisma.leg.findUnique({ where: { id: legId } });
       if (!leg) return reply.code(404).send({ error: "Leg not found" });
-      if (leg.agentPubkey !== body.agentPubkey)
+
+      // Authed mode: signer must match leg.agentPubkey
+      // Demo mode: trust body.agentPubkey (still must match leg)
+      const claimedPubkey = req.authedPubkey ?? body.agentPubkey;
+      if (claimedPubkey !== body.agentPubkey)
+        return reply.code(403).send({
+          error: "agentPubkey in body does not match authed wallet",
+        });
+      if (leg.agentPubkey !== claimedPubkey)
         return reply.code(403).send({ error: "Not your leg" });
       if (leg.status === "completed")
         return reply.code(400).send({ error: "Already completed" });
