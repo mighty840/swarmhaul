@@ -1,6 +1,11 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
+import {
+  serializerCompiler,
+  validatorCompiler,
+  ZodTypeProvider,
+} from "fastify-type-provider-zod";
 import { packageRoutes } from "./routes/packages.js";
 import { vehicleRoutes } from "./routes/vehicles.js";
 import { bidRoutes } from "./routes/bids.js";
@@ -10,9 +15,29 @@ import { economyRoutes } from "./routes/economy.js";
 import { mcpRoutes } from "./routes/mcp.js";
 import { addClient } from "./services/ws-broadcaster.js";
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
 
-await app.register(cors, { origin: true });
+// Wire Zod as the validator + serializer compiler so every route's
+// schema: { body, params, querystring, response } definition is enforced
+// at runtime by Zod and gives proper 400 responses on invalid input.
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
+
+// CORS — explicit allowlist (no wildcard)
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://localhost:4321")
+  .split(",")
+  .map((s) => s.trim());
+
+await app.register(cors, {
+  origin: (origin, cb) => {
+    // Allow no-origin requests (curl, server-to-server)
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS: origin ${origin} not allowed`), false);
+  },
+  credentials: true,
+});
+
 await app.register(websocket);
 
 // Health check

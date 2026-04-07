@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
+import type { z } from "zod";
 import { prisma } from "../db/client.js";
 import { MCP_TOOLS, handleMcpToolCall } from "../mcp/tools.js";
+import { McpCallBody } from "../schemas/index.js";
+
+type McpBody = z.infer<typeof McpCallBody>;
 
 /**
  * MCP HTTP transport.
@@ -8,13 +12,8 @@ import { MCP_TOOLS, handleMcpToolCall } from "../mcp/tools.js";
  * Two endpoints:
  * - GET  /mcp/tools         — returns the tool manifest (MCP discovery)
  * - POST /mcp/call          — { tool, arguments } → tool result
- *
- * For Claude Desktop / Cursor / Codex, use the stdio transport instead
- * (apps/api/src/mcp/stdio.ts) which talks to this API over HTTP under
- * the hood.
  */
 export async function mcpRoutes(app: FastifyInstance) {
-  // Manifest — what tools does this server expose?
   app.get("/tools", async () => ({
     schemaVersion: "2024-11-05",
     server: {
@@ -26,14 +25,11 @@ export async function mcpRoutes(app: FastifyInstance) {
     tools: MCP_TOOLS,
   }));
 
-  // Tool dispatch — { tool, arguments }
-  app.post<{ Body: { tool: string; arguments?: Record<string, unknown> } }>(
+  app.post(
     "/call",
+    { schema: { body: McpCallBody } },
     async (req, reply) => {
-      const { tool, arguments: args } = req.body;
-      if (!tool || typeof tool !== "string") {
-        return reply.code(400).send({ error: "Missing 'tool' field" });
-      }
+      const { tool, arguments: args } = req.body as McpBody;
 
       try {
         const result = await handleMcpToolCall(prisma, tool, args ?? {});
@@ -43,7 +39,9 @@ export async function mcpRoutes(app: FastifyInstance) {
             {
               type: "text",
               text:
-                typeof result === "string" ? result : JSON.stringify(result, null, 2),
+                typeof result === "string"
+                  ? result
+                  : JSON.stringify(result, null, 2),
             },
           ],
         };
