@@ -8,282 +8,427 @@ function uuidToBytes(): number[] {
   return Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
 }
 
+async function airdrop(
+  provider: anchor.AnchorProvider,
+  pubkey: anchor.web3.PublicKey,
+  sol = 2,
+) {
+  const sig = await provider.connection.requestAirdrop(pubkey, sol * LAMPORTS_PER_SOL);
+  await provider.connection.confirmTransaction(sig);
+}
+
 describe("swarmhaul", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-
   const program = anchor.workspace.swarmhaul as Program<Swarmhaul>;
   const shipper = provider.wallet;
-  const courier1 = Keypair.generate();
-  const courier2 = Keypair.generate();
-  const authority = provider.wallet;
 
-  const packageId = uuidToBytes();
-  const budgetLamports = new anchor.BN(LAMPORTS_PER_SOL); // 1 SOL
+  // ─── Happy path ────────────────────────────────────────────────
 
-  let packagePda: anchor.web3.PublicKey;
-  let vaultPda: anchor.web3.PublicKey;
-  let swarmPda: anchor.web3.PublicKey;
+  describe("happy path: list → form → assign 2 legs → confirm → settle", () => {
+    const courier1 = Keypair.generate();
+    const courier2 = Keypair.generate();
+    const packageId = uuidToBytes();
+    const budgetLamports = new anchor.BN(LAMPORTS_PER_SOL);
+    let packagePda: anchor.web3.PublicKey;
+    let vaultPda: anchor.web3.PublicKey;
+    let swarmPda: anchor.web3.PublicKey;
+    let leg0Pda: anchor.web3.PublicKey;
+    let leg1Pda: anchor.web3.PublicKey;
 
-  before(async () => {
-    // Airdrop to couriers
-    for (const kp of [courier1, courier2]) {
-      const sig = await provider.connection.requestAirdrop(
-        kp.publicKey,
-        2 * LAMPORTS_PER_SOL,
+    before(async () => {
+      await airdrop(provider, courier1.publicKey);
+      await airdrop(provider, courier2.publicKey);
+
+      [packagePda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(packageId)],
+        program.programId,
       );
-      await provider.connection.confirmTransaction(sig);
-    }
+      [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [swarmPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("swarm"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [leg0Pda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([0])],
+        program.programId,
+      );
+      [leg1Pda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([1])],
+        program.programId,
+      );
+    });
 
-    // Derive PDAs
-    [packagePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("package"), Buffer.from(packageId)],
-      program.programId,
-    );
-    [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), packagePda.toBuffer()],
-      program.programId,
-    );
-    [swarmPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("swarm"), packagePda.toBuffer()],
-      program.programId,
-    );
+    it("lists package with shipper as coordinator", async () => {
+      await program.methods
+        .listPackage(packageId, budgetLamports, shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const pkg = await program.account.packageAccount.fetch(packagePda);
+      expect(pkg.coordinator.toBase58()).to.equal(shipper.publicKey.toBase58());
+      expect(pkg.status).to.deep.equal({ listed: {} });
+      expect(pkg.maxBudgetLamports.toNumber()).to.equal(LAMPORTS_PER_SOL);
+      expect(await provider.connection.getBalance(vaultPda)).to.equal(LAMPORTS_PER_SOL);
+    });
+
+    it("forms swarm with 2 legs (coordinator-only)", async () => {
+      await program.methods
+        .formSwarm(2, new anchor.BN(LAMPORTS_PER_SOL * 0.8))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const swarm = await program.account.swarmAccount.fetch(swarmPda);
+      expect(swarm.totalLegs).to.equal(2);
+      expect(swarm.assignedLegs).to.equal(0);
+      expect(swarm.status).to.deep.equal({ forming: {} });
+    });
+
+    it("assigns leg 0 to courier1", async () => {
+      await program.methods
+        .assignLeg(0, courier1.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.4))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          legAccount: leg0Pda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const leg = await program.account.legAccount.fetch(leg0Pda);
+      expect(leg.courier.toBase58()).to.equal(courier1.publicKey.toBase58());
+      expect(leg.confirmed).to.equal(false);
+      expect(leg.paymentLamports.toNumber()).to.equal(LAMPORTS_PER_SOL * 0.4);
+    });
+
+    it("assigns leg 1 → swarm becomes Active", async () => {
+      await program.methods
+        .assignLeg(1, courier2.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.4))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          legAccount: leg1Pda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const swarm = await program.account.swarmAccount.fetch(swarmPda);
+      expect(swarm.assignedLegs).to.equal(2);
+      expect(swarm.status).to.deep.equal({ active: {} });
+    });
+
+    it("courier1 confirms leg 0 → receives exactly 0.4 SOL", async () => {
+      const before = await provider.connection.getBalance(courier1.publicKey);
+      await program.methods
+        .confirmLeg()
+        .accounts({
+          courier: courier1.publicKey,
+          legAccount: leg0Pda,
+          swarmAccount: swarmPda,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([courier1])
+        .rpc();
+
+      const after = await provider.connection.getBalance(courier1.publicKey);
+      expect(after - before).to.equal(LAMPORTS_PER_SOL * 0.4);
+
+      const leg = await program.account.legAccount.fetch(leg0Pda);
+      expect(leg.confirmed).to.equal(true);
+
+      const pkg = await program.account.packageAccount.fetch(packagePda);
+      expect(pkg.status).to.deep.equal({ inTransit: {} });
+    });
+
+    it("courier2 confirms leg 1", async () => {
+      await program.methods
+        .confirmLeg()
+        .accounts({
+          courier: courier2.publicKey,
+          legAccount: leg1Pda,
+          swarmAccount: swarmPda,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([courier2])
+        .rpc();
+
+      const swarm = await program.account.swarmAccount.fetch(swarmPda);
+      expect(swarm.completedLegs).to.equal(2);
+    });
+
+    it("settles → surplus returned, package delivered", async () => {
+      const shipperBefore = await provider.connection.getBalance(shipper.publicKey);
+      await program.methods
+        .settle()
+        .accounts({
+          coordinator: shipper.publicKey,
+          swarmAccount: swarmPda,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          shipper: shipper.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      expect(await provider.connection.getBalance(vaultPda)).to.equal(0);
+      const shipperAfter = await provider.connection.getBalance(shipper.publicKey);
+      // Shipper got the 0.2 SOL surplus back (minus tx fee)
+      expect(shipperAfter).to.be.greaterThan(shipperBefore);
+
+      const pkg = await program.account.packageAccount.fetch(packagePda);
+      expect(pkg.status).to.deep.equal({ delivered: {} });
+    });
   });
 
-  it("lists a package with escrow", async () => {
-    await program.methods
-      .listPackage(packageId, budgetLamports)
-      .accounts({
-        shipper: shipper.publicKey,
-        packageAccount: packagePda,
-        vault: vaultPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+  // ─── Negative tests: vault drain (C-1) ─────────────────────────
 
-    const pkg = await program.account.packageAccount.fetch(packagePda);
-    expect(pkg.status).to.deep.equal({ listed: {} });
-    expect(pkg.maxBudgetLamports.toNumber()).to.equal(LAMPORTS_PER_SOL);
+  describe("security: confirm_leg cannot drain vault", () => {
+    const courier = Keypair.generate();
+    const attacker = Keypair.generate();
+    const packageId = uuidToBytes();
+    let packagePda: anchor.web3.PublicKey;
+    let vaultPda: anchor.web3.PublicKey;
+    let swarmPda: anchor.web3.PublicKey;
+    let legPda: anchor.web3.PublicKey;
 
-    const vaultBalance = await provider.connection.getBalance(vaultPda);
-    expect(vaultBalance).to.equal(LAMPORTS_PER_SOL);
+    before(async () => {
+      await airdrop(provider, courier.publicKey);
+      await airdrop(provider, attacker.publicKey);
+
+      [packagePda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(packageId)],
+        program.programId,
+      );
+      [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [swarmPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("swarm"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [legPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([0])],
+        program.programId,
+      );
+
+      // Setup: list, form, assign one leg
+      await program.methods
+        .listPackage(packageId, new anchor.BN(LAMPORTS_PER_SOL), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .formSwarm(1, new anchor.BN(LAMPORTS_PER_SOL * 0.5))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .assignLeg(0, courier.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.5))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          legAccount: legPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("rejects random signer trying to confirm someone else's leg", async () => {
+      try {
+        await program.methods
+          .confirmLeg()
+          .accounts({
+            courier: attacker.publicKey,
+            legAccount: legPda,
+            swarmAccount: swarmPda,
+            packageAccount: packagePda,
+            vault: vaultPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        expect.fail("should have rejected attacker");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/NotAssignedCourier/);
+      }
+    });
+
+    it("rejects double confirmation by the legitimate courier", async () => {
+      // First confirm succeeds
+      await program.methods
+        .confirmLeg()
+        .accounts({
+          courier: courier.publicKey,
+          legAccount: legPda,
+          swarmAccount: swarmPda,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([courier])
+        .rpc();
+
+      // Second one must fail
+      try {
+        await program.methods
+          .confirmLeg()
+          .accounts({
+            courier: courier.publicKey,
+            legAccount: legPda,
+            swarmAccount: swarmPda,
+            packageAccount: packagePda,
+            vault: vaultPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([courier])
+          .rpc();
+        expect.fail("should have rejected double confirmation");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/LegAlreadyConfirmed/);
+      }
+    });
   });
 
-  it("registers a vehicle profile", async () => {
-    const [vehiclePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("vehicle"), courier1.publicKey.toBuffer()],
-      program.programId,
-    );
+  // ─── Negative tests: form_swarm authorization (C-3) ────────────
 
-    await program.methods
-      .registerVehicle(
-        new anchor.BN(100_000), // hourly rate lamports
-        320, // boot volume litres
-        false, // not autonomous
-      )
-      .accounts({
-        owner: courier1.publicKey,
-        vehicleProfile: vehiclePda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([courier1])
-      .rpc();
+  describe("security: only coordinator can form/assign/settle", () => {
+    const attacker = Keypair.generate();
+    const packageId = uuidToBytes();
+    let packagePda: anchor.web3.PublicKey;
+    let vaultPda: anchor.web3.PublicKey;
+    let swarmPda: anchor.web3.PublicKey;
 
-    const profile = await program.account.vehicleProfileAccount.fetch(vehiclePda);
-    expect(profile.owner.toBase58()).to.equal(courier1.publicKey.toBase58());
-    expect(profile.bootVolumeLitres).to.equal(320);
-    expect(profile.isAutonomous).to.equal(false);
+    before(async () => {
+      await airdrop(provider, attacker.publicKey);
+
+      [packagePda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(packageId)],
+        program.programId,
+      );
+      [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [swarmPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("swarm"), packagePda.toBuffer()],
+        program.programId,
+      );
+
+      await program.methods
+        .listPackage(packageId, new anchor.BN(LAMPORTS_PER_SOL), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("rejects form_swarm by non-coordinator", async () => {
+      try {
+        await program.methods
+          .formSwarm(2, new anchor.BN(LAMPORTS_PER_SOL * 0.5))
+          .accounts({
+            coordinator: attacker.publicKey,
+            packageAccount: packagePda,
+            swarmAccount: swarmPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        expect.fail("attacker should not be able to form swarm");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/UnauthorizedCoordinator/);
+      }
+    });
+
+    it("rejects form_swarm with total_lamports > max_budget", async () => {
+      try {
+        await program.methods
+          .formSwarm(1, new anchor.BN(LAMPORTS_PER_SOL * 5))
+          .accounts({
+            coordinator: shipper.publicKey,
+            packageAccount: packagePda,
+            swarmAccount: swarmPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        expect.fail("should reject over-budget swarm");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/BudgetExceeded/);
+      }
+    });
   });
 
-  it("forms a swarm", async () => {
-    const totalLegs = 2;
-    const totalLamports = new anchor.BN(LAMPORTS_PER_SOL * 0.8);
+  // ─── Cancel + refund ───────────────────────────────────────────
 
-    await program.methods
-      .formSwarm(totalLegs, totalLamports)
-      .accounts({
-        authority: authority.publicKey,
-        packageAccount: packagePda,
-        swarmAccount: swarmPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+  describe("cancel_package refunds shipper", () => {
+    it("cancels listed package and refunds vault", async () => {
+      const newPackageId = uuidToBytes();
+      const [pkgPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(newPackageId)],
+        program.programId,
+      );
+      const [vPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), pkgPda.toBuffer()],
+        program.programId,
+      );
 
-    const swarm = await program.account.swarmAccount.fetch(swarmPda);
-    expect(swarm.totalLegs).to.equal(2);
-    expect(swarm.completedLegs).to.equal(0);
-    expect(swarm.status).to.deep.equal({ forming: {} });
+      await program.methods
+        .listPackage(newPackageId, new anchor.BN(LAMPORTS_PER_SOL * 0.5), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: pkgPda,
+          vault: vPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
 
-    const pkg = await program.account.packageAccount.fetch(packagePda);
-    expect(pkg.status).to.deep.equal({ swarmForming: {} });
-  });
+      await program.methods
+        .cancelPackage()
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: pkgPda,
+          vault: vPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
 
-  it("courier 1 joins swarm (leg 0)", async () => {
-    await program.methods
-      .joinSwarm(0)
-      .accounts({
-        courier: courier1.publicKey,
-        swarmAccount: swarmPda,
-        packageAccount: packagePda,
-      })
-      .signers([courier1])
-      .rpc();
-
-    const swarm = await program.account.swarmAccount.fetch(swarmPda);
-    // Not yet active — still forming (need leg 1)
-    expect(swarm.status).to.deep.equal({ forming: {} });
-  });
-
-  it("courier 2 joins swarm (leg 1) — swarm becomes active", async () => {
-    await program.methods
-      .joinSwarm(1)
-      .accounts({
-        courier: courier2.publicKey,
-        swarmAccount: swarmPda,
-        packageAccount: packagePda,
-      })
-      .signers([courier2])
-      .rpc();
-
-    const swarm = await program.account.swarmAccount.fetch(swarmPda);
-    expect(swarm.status).to.deep.equal({ active: {} });
-
-    const pkg = await program.account.packageAccount.fetch(packagePda);
-    expect(pkg.status).to.deep.equal({ inTransit: {} });
-  });
-
-  it("courier 1 confirms leg 0 — receives payment", async () => {
-    const paymentLamports = new anchor.BN(LAMPORTS_PER_SOL * 0.4);
-    const balanceBefore = await provider.connection.getBalance(
-      courier1.publicKey,
-    );
-
-    await program.methods
-      .confirmLeg(paymentLamports)
-      .accounts({
-        courier: courier1.publicKey,
-        swarmAccount: swarmPda,
-        vault: vaultPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([courier1])
-      .rpc();
-
-    const balanceAfter = await provider.connection.getBalance(
-      courier1.publicKey,
-    );
-    expect(balanceAfter).to.be.greaterThan(balanceBefore);
-
-    const swarm = await program.account.swarmAccount.fetch(swarmPda);
-    expect(swarm.completedLegs).to.equal(1);
-  });
-
-  it("courier 2 confirms leg 1 — receives payment", async () => {
-    const paymentLamports = new anchor.BN(LAMPORTS_PER_SOL * 0.4);
-
-    await program.methods
-      .confirmLeg(paymentLamports)
-      .accounts({
-        courier: courier2.publicKey,
-        swarmAccount: swarmPda,
-        vault: vaultPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([courier2])
-      .rpc();
-
-    const swarm = await program.account.swarmAccount.fetch(swarmPda);
-    expect(swarm.completedLegs).to.equal(2);
-  });
-
-  it("settles the swarm — package delivered, surplus returned", async () => {
-    await program.methods
-      .settle()
-      .accounts({
-        authority: authority.publicKey,
-        swarmAccount: swarmPda,
-        packageAccount: packagePda,
-        vault: vaultPda,
-        shipper: shipper.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-
-    const swarm = await program.account.swarmAccount.fetch(swarmPda);
-    expect(swarm.status).to.deep.equal({ settled: {} });
-
-    const pkg = await program.account.packageAccount.fetch(packagePda);
-    expect(pkg.status).to.deep.equal({ delivered: {} });
-
-    const vaultBalance = await provider.connection.getBalance(vaultPda);
-    expect(vaultBalance).to.equal(0);
-  });
-
-  it("updates agent reputation", async () => {
-    const [repPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("reputation"), courier1.publicKey.toBuffer()],
-      program.programId,
-    );
-
-    await program.methods
-      .updateReputation(1, 1, new anchor.BN(300))
-      .accounts({
-        authority: authority.publicKey,
-        reputation: repPda,
-        agent: courier1.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-
-    const rep = await program.account.agentReputationAccount.fetch(repPda);
-    expect(rep.legsCompleted).to.equal(1);
-    expect(rep.legsAccepted).to.equal(1);
-    expect(rep.reliabilityScore).to.equal(100);
-  });
-
-  it("cancels a fresh package and refunds", async () => {
-    const newPackageId = uuidToBytes();
-    const newBudget = new anchor.BN(LAMPORTS_PER_SOL * 0.5);
-
-    const [newPkgPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("package"), Buffer.from(newPackageId)],
-      program.programId,
-    );
-    const [newVaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), newPkgPda.toBuffer()],
-      program.programId,
-    );
-
-    await program.methods
-      .listPackage(newPackageId, newBudget)
-      .accounts({
-        shipper: shipper.publicKey,
-        packageAccount: newPkgPda,
-        vault: newVaultPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-
-    const balanceBefore = await provider.connection.getBalance(
-      shipper.publicKey,
-    );
-
-    await program.methods
-      .cancelPackage()
-      .accounts({
-        shipper: shipper.publicKey,
-        packageAccount: newPkgPda,
-        vault: newVaultPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-
-    const pkg = await program.account.packageAccount.fetch(newPkgPda);
-    expect(pkg.status).to.deep.equal({ failed: {} });
-
-    const balanceAfter = await provider.connection.getBalance(
-      shipper.publicKey,
-    );
-    expect(balanceAfter).to.be.greaterThan(balanceBefore);
+      expect(await provider.connection.getBalance(vPda)).to.equal(0);
+      const pkg = await program.account.packageAccount.fetch(pkgPda);
+      expect(pkg.status).to.deep.equal({ failed: {} });
+    });
   });
 });
