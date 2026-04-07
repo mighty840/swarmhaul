@@ -14,6 +14,7 @@ import { reputationRoutes } from "./routes/reputation.js";
 import { economyRoutes } from "./routes/economy.js";
 import { mcpRoutes } from "./routes/mcp.js";
 import { addClient } from "./services/ws-broadcaster.js";
+import { authHook } from "./services/auth.js";
 
 const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
 
@@ -39,6 +40,18 @@ await app.register(cors, {
 });
 
 await app.register(websocket);
+
+// Wallet signature auth — preHandler runs before every route handler.
+// Mutating requests (POST/PUT/PATCH/DELETE) must include X-Pubkey, X-Nonce,
+// X-Signature headers; canonical message is METHOD\nURL\nNONCE\nSHA256(body).
+// Toggle: REQUIRE_AUTH=true enforces, default false allows demo mode.
+const requireAuth = process.env.REQUIRE_AUTH === "true";
+app.addHook("preHandler", authHook({ required: requireAuth }));
+if (requireAuth) {
+  app.log.info("[auth] wallet signatures REQUIRED on mutating routes");
+} else {
+  app.log.info("[auth] demo mode — auth optional, set REQUIRE_AUTH=true to enforce");
+}
 
 // Health check
 app.get("/health", async () => ({ status: "ok", service: "swarmhaul-api" }));

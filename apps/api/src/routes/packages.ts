@@ -133,6 +133,13 @@ export async function packageRoutes(app: FastifyInstance) {
       const { id } = req.params as PackageParams;
       const pkg = await prisma.package.findUnique({ where: { id } });
       if (!pkg) return reply.code(404).send({ error: "Package not found" });
+
+      // Only the original shipper can cancel (when authed)
+      if (req.authedPubkey && req.authedPubkey !== pkg.shipperPubkey)
+        return reply
+          .code(403)
+          .send({ error: "Only the shipper can cancel this package" });
+
       if (pkg.status !== "listed")
         return reply.code(400).send({ error: "Can only cancel listed packages" });
 

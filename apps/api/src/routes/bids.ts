@@ -26,6 +26,15 @@ export async function bidRoutes(app: FastifyInstance) {
     { schema: { body: BidCreateBody } },
     async (req, reply) => {
       const body = req.body as BidBody;
+
+      // If authed: require body.agentPubkey to match the authed wallet
+      // (no impersonation). In demo mode, accept the body field as-is.
+      if (req.authedPubkey && req.authedPubkey !== body.agentPubkey) {
+        return reply.code(403).send({
+          error: "agentPubkey in body does not match authed wallet",
+        });
+      }
+
       const bid = await prisma.bid.create({
         data: {
           packageId: body.packageId,
