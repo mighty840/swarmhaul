@@ -76,6 +76,12 @@ jobs:
       - name: Install JS dependencies
         run: bun install
 
+      - name: Generate Solana keypair
+        run: solana-keygen new --no-bip39-passphrase --force
+
+      - name: Configure Solana for localnet
+        run: solana config set --url localhost
+
       - name: Anchor build
         run: anchor build
 
