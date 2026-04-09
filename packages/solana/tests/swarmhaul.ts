@@ -559,6 +559,267 @@ describe("swarmhaul", () => {
     });
   });
 
+  // ─── Additional negative tests: auth, bounds, state machine ─────
+
+  describe("security: assign_leg + settle authorization + edge cases", () => {
+    const attacker = Keypair.generate();
+    const courier = Keypair.generate();
+    const packageId = uuidToBytes();
+    let packagePda: PublicKey;
+    let vaultPda: PublicKey;
+    let swarmPda: PublicKey;
+    let legPda: PublicKey;
+
+    before(async () => {
+      await airdrop(provider, attacker.publicKey);
+      await airdrop(provider, courier.publicKey);
+
+      [packagePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(packageId)],
+        program.programId,
+      );
+      [vaultPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [swarmPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("swarm"), packagePda.toBuffer()],
+        program.programId,
+      );
+      [legPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([0])],
+        program.programId,
+      );
+
+      // Setup: list + form with 1 leg
+      await program.methods
+        .listPackage(packageId, new anchor.BN(LAMPORTS_PER_SOL), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .formSwarm(1, new anchor.BN(LAMPORTS_PER_SOL * 0.5))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("rejects assign_leg by non-coordinator", async () => {
+      try {
+        await program.methods
+          .assignLeg(0, courier.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.5))
+          .accounts({
+            coordinator: attacker.publicKey,
+            packageAccount: packagePda,
+            swarmAccount: swarmPda,
+            legAccount: legPda,
+            courierReputation: repPda(program.programId, courier.publicKey),
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        expect.fail("attacker should not assign legs");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/UnauthorizedCoordinator/);
+      }
+    });
+
+    it("rejects assign_leg with out-of-bounds index", async () => {
+      try {
+        const [badLegPda] = PublicKey.findProgramAddressSync(
+          [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([99])],
+          program.programId,
+        );
+        await program.methods
+          .assignLeg(99, courier.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.1))
+          .accounts({
+            coordinator: shipper.publicKey,
+            packageAccount: packagePda,
+            swarmAccount: swarmPda,
+            legAccount: badLegPda,
+            courierReputation: repPda(program.programId, courier.publicKey),
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        expect.fail("should reject out-of-bounds leg index");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/LegIndexOutOfBounds/);
+      }
+    });
+
+    it("rejects settle before all legs are complete", async () => {
+      // First assign the leg so swarm becomes Active
+      await program.methods
+        .assignLeg(0, courier.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.5))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: packagePda,
+          swarmAccount: swarmPda,
+          legAccount: legPda,
+          courierReputation: repPda(program.programId, courier.publicKey),
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Now try to settle without confirming the leg
+      try {
+        await program.methods
+          .settle()
+          .accounts({
+            coordinator: shipper.publicKey,
+            swarmAccount: swarmPda,
+            packageAccount: packagePda,
+            vault: vaultPda,
+            shipper: shipper.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        expect.fail("should reject settle before legs complete");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/LegsNotComplete/);
+      }
+    });
+
+    it("rejects settle by non-coordinator", async () => {
+      // Confirm the leg first so settle WOULD succeed
+      await program.methods
+        .confirmLeg()
+        .accounts({
+          courier: courier.publicKey,
+          legAccount: legPda,
+          swarmAccount: swarmPda,
+          packageAccount: packagePda,
+          vault: vaultPda,
+          courierReputation: repPda(program.programId, courier.publicKey),
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([courier])
+        .rpc();
+
+      try {
+        await program.methods
+          .settle()
+          .accounts({
+            coordinator: attacker.publicKey,
+            swarmAccount: swarmPda,
+            packageAccount: packagePda,
+            vault: vaultPda,
+            shipper: shipper.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        expect.fail("attacker should not settle");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/UnauthorizedCoordinator/);
+      }
+    });
+  });
+
+  describe("security: cancel_package authorization + state", () => {
+    it("rejects cancel by non-shipper", async () => {
+      const attacker = Keypair.generate();
+      await airdrop(provider, attacker.publicKey);
+
+      const pkgId = uuidToBytes();
+      const [pkgPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(pkgId)],
+        program.programId,
+      );
+      const [vPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), pkgPda.toBuffer()],
+        program.programId,
+      );
+
+      await program.methods
+        .listPackage(pkgId, new anchor.BN(LAMPORTS_PER_SOL * 0.2), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: pkgPda,
+          vault: vPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      try {
+        await program.methods
+          .cancelPackage()
+          .accounts({
+            shipper: attacker.publicKey,
+            packageAccount: pkgPda,
+            vault: vPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        expect.fail("non-shipper should not cancel");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/ConstraintRaw|Constraint|2003/);
+      }
+    });
+
+    it("rejects cancel after swarm has formed (status != Listed)", async () => {
+      const pkgId = uuidToBytes();
+      const [pkgPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(pkgId)],
+        program.programId,
+      );
+      const [vPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), pkgPda.toBuffer()],
+        program.programId,
+      );
+      const [sPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("swarm"), pkgPda.toBuffer()],
+        program.programId,
+      );
+
+      await program.methods
+        .listPackage(pkgId, new anchor.BN(LAMPORTS_PER_SOL * 0.2), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: pkgPda,
+          vault: vPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .formSwarm(1, new anchor.BN(LAMPORTS_PER_SOL * 0.1))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: pkgPda,
+          swarmAccount: sPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Package is now SwarmForming, not Listed
+      try {
+        await program.methods
+          .cancelPackage()
+          .accounts({
+            shipper: shipper.publicKey,
+            packageAccount: pkgPda,
+            vault: vPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        expect.fail("should not cancel after swarm forms");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/CannotCancel/);
+      }
+    });
+  });
+
   // ─── H-4: vehicle registration cannot be silently overwritten ───
 
   describe("security: register_vehicle uses init (not init_if_needed)", () => {
