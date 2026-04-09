@@ -214,6 +214,14 @@ describe("swarmhaul", () => {
 
       const pkg = await program.account.packageAccount.fetch(packagePda);
       expect(pkg.status).to.deep.equal({ delivered: {} });
+
+      // M-4: swarm account should be closed (rent returned to shipper)
+      try {
+        await program.account.swarmAccount.fetch(swarmPda);
+        expect.fail("swarm account should be closed after settle");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/Account does not exist|Could not find/);
+      }
     });
   });
 
@@ -540,8 +548,99 @@ describe("swarmhaul", () => {
         .rpc();
 
       expect(await provider.connection.getBalance(vPda)).to.equal(0);
-      const pkg = await program.account.packageAccount.fetch(pkgPda);
-      expect(pkg.status).to.deep.equal({ failed: {} });
+
+      // M-4: package account should be closed (rent returned to shipper)
+      try {
+        await program.account.packageAccount.fetch(pkgPda);
+        expect.fail("package account should be closed after cancel");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/Account does not exist|Could not find/);
+      }
+    });
+  });
+
+  // ─── H-4: vehicle registration cannot be silently overwritten ───
+
+  describe("security: register_vehicle uses init (not init_if_needed)", () => {
+    const courier = Keypair.generate();
+
+    before(async () => {
+      await airdrop(provider, courier.publicKey);
+    });
+
+    it("first registration succeeds", async () => {
+      const [vehiclePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vehicle"), courier.publicKey.toBuffer()],
+        program.programId,
+      );
+
+      await program.methods
+        .registerVehicle(
+          new anchor.BN(100_000),
+          320,
+          false,
+        )
+        .accounts({
+          owner: courier.publicKey,
+          vehicleProfile: vehiclePda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([courier])
+        .rpc();
+
+      const profile = await program.account.vehicleProfileAccount.fetch(vehiclePda);
+      expect(profile.bootVolumeLitres).to.equal(320);
+    });
+
+    it("second registration (same owner) is rejected", async () => {
+      const [vehiclePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vehicle"), courier.publicKey.toBuffer()],
+        program.programId,
+      );
+
+      try {
+        await program.methods
+          .registerVehicle(
+            new anchor.BN(200_000),
+            500,
+            true,
+          )
+          .accounts({
+            owner: courier.publicKey,
+            vehicleProfile: vehiclePda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([courier])
+          .rpc();
+        expect.fail("should reject duplicate registration");
+      } catch (err: any) {
+        // Anchor rejects init on an already-initialized PDA
+        expect(err.toString()).to.match(/already in use|already been used/i);
+      }
+    });
+
+    it("update_vehicle works for existing owner", async () => {
+      const [vehiclePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vehicle"), courier.publicKey.toBuffer()],
+        program.programId,
+      );
+
+      await program.methods
+        .updateVehicle(
+          new anchor.BN(200_000),
+          500,
+          true,
+        )
+        .accounts({
+          owner: courier.publicKey,
+          vehicleProfile: vehiclePda,
+        })
+        .signers([courier])
+        .rpc();
+
+      const profile = await program.account.vehicleProfileAccount.fetch(vehiclePda);
+      expect(profile.bootVolumeLitres).to.equal(500);
+      expect(profile.isAutonomous).to.equal(true);
     });
   });
 });

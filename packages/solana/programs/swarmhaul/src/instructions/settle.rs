@@ -10,6 +10,7 @@ pub struct Settle<'info> {
 
     #[account(
         mut,
+        close = shipper,
         constraint = swarm_account.status == SwarmStatus::Active @ SwarmError::SwarmNotActive,
         constraint = swarm_account.completed_legs >= swarm_account.total_legs @ SwarmError::LegsNotComplete,
         constraint = swarm_account.package == package_account.key() @ SwarmError::InvalidPackageStatus,

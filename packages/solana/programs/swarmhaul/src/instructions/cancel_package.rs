@@ -2,6 +2,10 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use crate::state::{PackageAccount, PackageStatus};
 
+/// Default TTL: 30 minutes. After this, the package can no longer be cancelled
+/// (swarm formation should have happened, or the package expired).
+const CANCEL_TTL_SECONDS: i64 = 30 * 60;
+
 #[derive(Accounts)]
 pub struct CancelPackage<'info> {
     #[account(
@@ -12,6 +16,7 @@ pub struct CancelPackage<'info> {
 
     #[account(
         mut,
+        close = shipper,
         constraint = package_account.status == PackageStatus::Listed @ CancelError::CannotCancel,
     )]
     pub package_account: Account<'info, PackageAccount>,
@@ -28,6 +33,13 @@ pub struct CancelPackage<'info> {
 }
 
 pub fn handler(ctx: Context<CancelPackage>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let created = ctx.accounts.package_account.created_at;
+    require!(
+        now - created <= CANCEL_TTL_SECONDS,
+        CancelError::CancelWindowExpired
+    );
+
     let package_key = ctx.accounts.package_account.key();
     let vault_bump = ctx.accounts.package_account.vault_bump;
     let balance = ctx.accounts.vault.lamports();
@@ -56,6 +68,9 @@ pub fn handler(ctx: Context<CancelPackage>) -> Result<()> {
         refunded_lamports: balance,
     });
 
+    // Note: package_account is closed to shipper via `close = shipper` constraint,
+    // returning the rent-exempt balance automatically after the handler returns.
+
     Ok(())
 }
 
@@ -69,4 +84,6 @@ pub struct PackageCancelled {
 pub enum CancelError {
     #[msg("Can only cancel packages in Listed status")]
     CannotCancel,
+    #[msg("Cancellation window has expired (30 min from listing)")]
+    CancelWindowExpired,
 }
