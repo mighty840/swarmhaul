@@ -1,0 +1,5 @@
+I co-designed the decentralized reputation layer for TRADE, a €1.59M BMBF-funded project on trustworthy autonomous driving with Filancore, ETO GRUPPE, and TH Ingolstadt. In 2023, I filed a patent on "Method and system for goods and/or mail transport" — the exact primitive SwarmHaul implements. This isn't a pivot; it's a thesis I've been refining for years.
+
+The timing is driven by two converging forces: Model Context Protocol (MCP) makes AI agent interoperability a solved problem for the first time, and Solana's sub-second finality makes per-leg micro-settlement economically viable. Before MCP, every agent spoke a different API. Before Solana's fee structure, per-contribution payment splitting was prohibitively expensive.
+
+The SWARM hackathon's RFB-05 (Multi-Agent Orchestration) asks exactly the question SwarmHaul answers: "Complex tasks need multiple agents working together. Who coordinates, and who gets paid?" We answer with a protocol, not a platform — and we back it with a security-audited Anchor program, real on-chain escrow, and a reputation model from a funded research project.
