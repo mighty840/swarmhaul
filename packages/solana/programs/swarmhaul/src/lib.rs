@@ -59,6 +59,20 @@ pub mod swarmhaul {
         instructions::settle::handler(ctx)
     }
 
+    pub fn update_vehicle(
+        ctx: Context<UpdateVehicle>,
+        hourly_rate_lamports: u64,
+        boot_volume_litres: u16,
+        is_autonomous: bool,
+    ) -> Result<()> {
+        instructions::register_vehicle::update_handler(
+            ctx,
+            hourly_rate_lamports,
+            boot_volume_litres,
+            is_autonomous,
+        )
+    }
+
     pub fn cancel_package(ctx: Context<CancelPackage>) -> Result<()> {
         instructions::cancel_package::handler(ctx)
     }
