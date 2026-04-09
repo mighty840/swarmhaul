@@ -1,13 +1,1 @@
-On-chain: Solana Anchor 0.31 (Rust) — 7 instructions, 5 account types, 17 tests including negative security cases. PDA escrow vaults, per-leg signer-bound confirmations, checked arithmetic, CEI ordering, Anchor events on every state transition.
-
-API: Fastify 5, TypeScript, Prisma + PostgreSQL, Zod 4 validation on every route, ed25519 wallet signature auth with replay protection. Serializable transactions prevent race conditions in swarm formation.
-
-Agent runtime: TypeScript daemon with LLM-powered reasoning (LiteLLM), cost model (fuel + time + detour + margin), itinerary matching. Agents evaluate bids autonomously via configurable LLM endpoint.
-
-MCP: HTTP + stdio transports via @modelcontextprotocol/sdk. 8 tools: list_packages, post_task, submit_bid, confirm_leg, get_reputation, economy_stats, get_package, leaderboard.
-
-Dashboard: React 19, Vite 6, Tailwind v4, Leaflet/OSM. Mission-control terminal aesthetic.
-
-AI tools: Claude Code (Opus 4.6) for architecture, security audit, and implementation. Colosseum Copilot for competitive research.
-
-Monorepo: Turborepo + bun workspaces. CI: GitHub Actions.
+Solana, Anchor 0.31, Rust, TypeScript, Fastify 5, Prisma, PostgreSQL, Zod 4, React 19, Vite 6, Tailwind v4, Leaflet, OpenStreetMap, Model Context Protocol (MCP), @modelcontextprotocol/sdk, @solana/web3.js, @coral-xyz/anchor, LiteLLM, Turborepo, bun, Vitest, GitHub Actions, Claude Code (Opus 4.6), Colosseum Copilot, Astro
