@@ -188,4 +188,4 @@ P0 hardening sprint in progress. Tracker: https://github.com/mighty840/swarmhaul
 
 ## License
 
-MIT
+Copyright © 2026 Sharang Parnerkar. All rights reserved.

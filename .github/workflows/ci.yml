@@ -31,5 +31,73 @@ jobs:
       - name: Typecheck + build
         run: bunx turbo run build --filter='!@swarmhaul/solana'
 
-      - name: Unit tests (vitest workspace)
-        run: bunx vitest run
+      - name: Unit tests with coverage
+        run: bunx vitest run --coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: apps/api/coverage/lcov.info,apps/agent/coverage/lcov.info
+          flags: typescript
+          fail_ci_if_error: false
+
+      - name: Audit dependencies
+        run: bun audit --audit-level=high || true
+
+  anchor:
+    name: Anchor Build + Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force
+          avm install 0.31.1
+          avm use 0.31.1
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: packages/solana
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.12
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Generate Solana keypair
+        run: solana-keygen new --no-bip39-passphrase --force
+
+      - name: Configure Solana for localnet
+        run: solana config set --url localhost
+
+      - name: Anchor build
+        run: anchor build
+
+      - name: Anchor test
+        run: anchor test
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks (secret scanning)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
