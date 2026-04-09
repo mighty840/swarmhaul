@@ -134,6 +134,22 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
       });
     }
 
+    // Mirror on-chain reputation to Postgres — assign_leg bumped legsAccepted for each courier
+    for (const bid of chain.bids) {
+      await prisma.agentReputation.upsert({
+        where: { agentPubkey: bid.agentPubkey },
+        create: {
+          agentPubkey: bid.agentPubkey,
+          legsAccepted: 1,
+          legsCompleted: 0,
+          reliabilityScore: 0,
+        },
+        update: {
+          legsAccepted: { increment: 1 },
+        },
+      });
+    }
+
     console.log(
       `[coordinator] swarm formed on-chain: ${swarmPda.toBase58()} — ${explorerTxUrl(signature)}`,
     );
@@ -249,6 +265,45 @@ export async function confirmLegCompletion(
 
   if (!result) return;
   const { leg, swarm, allComplete } = result;
+
+  // Mirror on-chain reputation to Postgres — confirm_leg bumped legsCompleted
+  try {
+    const rep = await prisma.agentReputation.upsert({
+      where: { agentPubkey: agentPubkey },
+      create: {
+        agentPubkey,
+        legsAccepted: 1,
+        legsCompleted: 1,
+        reliabilityScore: 100,
+      },
+      update: {
+        legsCompleted: { increment: 1 },
+      },
+    });
+    // Recompute score: floor(completed / accepted * 100)
+    const score =
+      rep.legsAccepted > 0
+        ? Math.min(100, Math.round((rep.legsCompleted / rep.legsAccepted) * 100))
+        : 0;
+    await prisma.agentReputation.update({
+      where: { agentPubkey },
+      data: { reliabilityScore: score },
+    });
+
+    broadcast({
+      type: "REPUTATION_UPDATED",
+      reputation: {
+        agentPubkey,
+        legsCompleted: rep.legsCompleted,
+        legsAccepted: rep.legsAccepted,
+        avgDeliveryTimeSec: 0,
+        reliabilityScore: score,
+        registeredAt: rep.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error("[coordinator] reputation sync failed", err);
+  }
 
   broadcast({
     type: "LEG_COMPLETED",
