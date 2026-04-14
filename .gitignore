@@ -2,6 +2,8 @@ node_modules/
 dist/
 .turbo/
 *.tsbuildinfo
+coverage/
+.playwright-mcp/
 
 # Environment
 .env
