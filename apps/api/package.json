@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "bench": "vitest bench",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate"
   },

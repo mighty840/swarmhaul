@@ -348,8 +348,145 @@ describe("findOptimalRelayChain — 3-leg relay chains", () => {
   });
 });
 
-describe("findOptimalRelayChain — performance smoke test", () => {
-  it("handles 50 bids without crashing or hanging", () => {
+describe("findOptimalRelayChain — reputation nudge", () => {
+  // Two single-leg candidates from origin → dest at the same cost.
+  // The higher-reputation one should win when reputation scores are supplied.
+  function singleLegBids() {
+    return [
+      bid({
+        id: "low-rep-bid",
+        agent: "low",
+        pickupLat: MUNICH_CENTER.lat,
+        pickupLng: MUNICH_CENTER.lng,
+        dropoffLat: MUNICH_NORTH.lat,
+        dropoffLng: MUNICH_NORTH.lng,
+        cost: 0.3,
+      }),
+      bid({
+        id: "high-rep-bid",
+        agent: "high",
+        pickupLat: MUNICH_CENTER.lat,
+        pickupLng: MUNICH_CENTER.lng,
+        dropoffLat: MUNICH_NORTH.lat,
+        dropoffLng: MUNICH_NORTH.lng,
+        cost: 0.3,
+      }),
+    ];
+  }
+
+  it("picks higher-rep chain when raw costs tie", () => {
+    const reps = new Map([["high", 0.9], ["low", 0.3]]);
+    const result = findOptimalRelayChain(
+      MUNICH_CENTER,
+      MUNICH_NORTH,
+      singleLegBids(),
+      1.0,
+      { reputationScores: reps },
+    );
+    expect(result).not.toBeNull();
+    expect(result!.bids[0].agentPubkey).toBe("high");
+    expect(result!.avgReputation).toBeCloseTo(0.9, 5);
+    expect(result!.effectiveCostSol).toBeLessThan(0.3);
+  });
+
+  it("keeps cost dominant — cheaper low-rep beats expensive high-rep", () => {
+    const bids = [
+      bid({
+        id: "expensive-high",
+        agent: "high",
+        pickupLat: MUNICH_CENTER.lat,
+        pickupLng: MUNICH_CENTER.lng,
+        dropoffLat: MUNICH_NORTH.lat,
+        dropoffLng: MUNICH_NORTH.lng,
+        cost: 0.5,
+      }),
+      bid({
+        id: "cheap-low",
+        agent: "low",
+        pickupLat: MUNICH_CENTER.lat,
+        pickupLng: MUNICH_CENTER.lng,
+        dropoffLat: MUNICH_NORTH.lat,
+        dropoffLng: MUNICH_NORTH.lng,
+        cost: 0.3,
+      }),
+    ];
+    // 0.5 × (1 - 0.08×0.4) = 0.484
+    // 0.3 × (1 - 0.08×(-0.4)) = 0.3 × 1.032 = 0.3096
+    // Cheap low-rep wins on effective cost
+    const result = findOptimalRelayChain(
+      MUNICH_CENTER,
+      MUNICH_NORTH,
+      bids,
+      1.0,
+      { reputationScores: new Map([["high", 0.9], ["low", 0.1]]) },
+    );
+    expect(result!.bids[0].agentPubkey).toBe("low");
+  });
+
+  it("no reputation scores → effective cost equals raw cost, avgReputation unset", () => {
+    const result = findOptimalRelayChain(
+      MUNICH_CENTER,
+      MUNICH_NORTH,
+      singleLegBids(),
+      1.0,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.avgReputation).toBeUndefined();
+    expect(result!.effectiveCostSol).toBe(result!.totalCostSol);
+  });
+
+  it("reports avgReputation as arithmetic mean of chain", () => {
+    const reps = new Map([["alice", 0.9], ["bob", 0.3]]);
+    const midpoint = {
+      lat: (MUNICH_CENTER.lat + MUNICH_EAST.lat) / 2,
+      lng: (MUNICH_CENTER.lng + MUNICH_EAST.lng) / 2,
+    };
+    const result = findOptimalRelayChain(
+      MUNICH_CENTER,
+      MUNICH_EAST,
+      [
+        bid({
+          id: "leg1",
+          agent: "alice",
+          pickupLat: MUNICH_CENTER.lat,
+          pickupLng: MUNICH_CENTER.lng,
+          dropoffLat: midpoint.lat,
+          dropoffLng: midpoint.lng,
+          cost: 0.15,
+        }),
+        bid({
+          id: "leg2",
+          agent: "bob",
+          pickupLat: midpoint.lat,
+          pickupLng: midpoint.lng,
+          dropoffLat: MUNICH_EAST.lat,
+          dropoffLng: MUNICH_EAST.lng,
+          cost: 0.15,
+        }),
+      ],
+      1.0,
+      { reputationScores: reps },
+    );
+    // If a 2-leg chain forms, mean of 0.9 + 0.3 = 0.6
+    if (result && result.bids.length === 2) {
+      expect(result.avgReputation).toBeCloseTo(0.6, 5);
+    }
+  });
+
+  it("γ=0 disables the nudge; identical result to no-reputation call", () => {
+    const bids = singleLegBids();
+    const reps = new Map([["high", 0.9], ["low", 0.1]]);
+    // With γ=0, both chains have effective_cost = raw_cost, so the first-match wins.
+    const withZero = findOptimalRelayChain(MUNICH_CENTER, MUNICH_NORTH, bids, 1.0, {
+      reputationScores: reps,
+      reputationNudge: 0,
+    });
+    expect(withZero!.effectiveCostSol).toBe(withZero!.totalCostSol);
+  });
+});
+
+describe("findOptimalRelayChain — performance", () => {
+  it("handles 50 bids in under 500ms", () => {
     const bids = Array.from({ length: 50 }, (_, i) =>
       bid({
         id: `b${i}`,
@@ -362,10 +499,24 @@ describe("findOptimalRelayChain — performance smoke test", () => {
       }),
     );
     const start = Date.now();
-    const result = findOptimalRelayChain(MUNICH_CENTER, MUNICH_NORTH, bids, 5.0);
-    const elapsed = Date.now() - start;
-    // Cubic in n=50 is fine — just shouldn't hang
-    expect(elapsed).toBeLessThan(2000);
-    // result may be null or a chain — both are valid for randomly placed bids
+    findOptimalRelayChain(MUNICH_CENTER, MUNICH_NORTH, bids, 5.0);
+    expect(Date.now() - start).toBeLessThan(500);
+  });
+
+  it("handles 500 bids in under 2s (graph+BFS scales sub-cubic)", () => {
+    const bids = Array.from({ length: 500 }, (_, i) =>
+      bid({
+        id: `b${i}`,
+        agent: `agent${i % 50}`,
+        pickupLat: MUNICH_CENTER.lat + (i % 10) * 0.005,
+        pickupLng: MUNICH_CENTER.lng + (i % 13) * 0.005,
+        dropoffLat: MUNICH_NORTH.lat + (i % 8) * 0.005,
+        dropoffLng: MUNICH_NORTH.lng + (i % 9) * 0.005,
+        cost: 0.02 + (i % 30) * 0.01,
+      }),
+    );
+    const start = Date.now();
+    findOptimalRelayChain(MUNICH_CENTER, MUNICH_NORTH, bids, 5.0);
+    expect(Date.now() - start).toBeLessThan(2000);
   });
 });

@@ -6,8 +6,9 @@ import { SwarmMap } from "./pages/SwarmMap.js";
 import { ShipperView } from "./pages/ShipperView.js";
 import { CourierView } from "./pages/CourierView.js";
 import { EconomyView } from "./pages/EconomyView.js";
+import { ReputationModelView } from "./pages/ReputationModelView.js";
 
-type View = "map" | "shipper" | "courier" | "economy";
+type View = "map" | "shipper" | "courier" | "economy" | "reputation";
 
 export default function App() {
   const [view, setView] = useState<View>("economy");
@@ -37,6 +38,7 @@ export default function App() {
         {view === "map" && <SwarmMap packages={data.packages} />}
         {view === "shipper" && <ShipperView />}
         {view === "courier" && <CourierView leaderboard={data.leaderboard} />}
+        {view === "reputation" && <ReputationModelView />}
       </main>
 
       <footer className="border-t border-[var(--color-line)] bg-[var(--color-graphite)] px-4 h-7 flex items-center justify-between text-[9px] tracking-[0.16em] uppercase text-[var(--color-dim)]">

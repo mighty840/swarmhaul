@@ -4,6 +4,7 @@ import { prisma } from "../db/client.js";
 import { broadcast } from "./ws-broadcaster.js";
 import { findOptimalRelayChain } from "./route-optimizer.js";
 import { getSolana, explorerTxUrl } from "./solana.js";
+import { allocateReputationWeightedPayments } from "./reputation-engine.js";
 
 const SWARM_FORMATION_TTL_MS = 15 * 60 * 1000;
 const MIN_BIDS_FOR_EVALUATION = 1;
@@ -42,6 +43,17 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
       });
       if (bids.length < MIN_BIDS_FOR_EVALUATION) return null;
 
+      // Fetch reputation for every bidder up front — used both by the
+      // optimizer (for a small bounded nudge toward higher-rep chains)
+      // and by the payment allocator (for surplus distribution).
+      const bidderPubkeys = Array.from(new Set(bids.map((b) => b.agentPubkey)));
+      const reputationRows = await tx.agentReputation.findMany({
+        where: { agentPubkey: { in: bidderPubkeys } },
+      });
+      const repMap = new Map<string, number>(
+        reputationRows.map((r) => [r.agentPubkey, r.reliabilityScore / 100]),
+      );
+
       const chain = findOptimalRelayChain(
         { lat: pkg.originLat, lng: pkg.originLng },
         { lat: pkg.destLat, lng: pkg.destLng },
@@ -56,16 +68,25 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
           distanceKm: b.distanceKm,
         })),
         pkg.maxBudgetSol,
+        { reputationScores: repMap },
       );
 
       if (!chain) return null;
+      const allocation = allocateReputationWeightedPayments(
+        chain.bids.map((b) => ({ agentPubkey: b.agentPubkey, bidSol: b.costSol })),
+        repMap,
+        pkg.maxBudgetSol,
+      );
+      const paymentByAgent = new Map(
+        allocation.payments.map((p) => [p.agentPubkey, p.totalSol]),
+      );
 
       // Mark package status atomically; the on-chain call happens AFTER
       // commit so we can't double-form even under race conditions.
       const swarm = await tx.swarm.create({
         data: {
           packageId,
-          totalCostSol: chain.totalCostSol,
+          totalCostSol: allocation.totalPaidSol,
           status: "forming",
           legs: {
             create: chain.bids.map((bid, index) => ({
@@ -77,7 +98,7 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
               dropoffLng: bid.dropoffLng,
               distanceKm: bid.distanceKm,
               estimatedDurationMin: Math.round((bid.distanceKm / 30) * 60),
-              agreedPaymentSol: bid.costSol,
+              agreedPaymentSol: paymentByAgent.get(bid.agentPubkey) ?? bid.costSol,
               status: "pending",
             })),
           },
@@ -90,13 +111,13 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
         data: { status: "swarm_forming" },
       });
 
-      return { pkg, swarm, chain };
+      return { pkg, swarm, chain, allocation };
     },
     { isolationLevel: "Serializable", timeout: 10_000 },
   );
 
   if (!result) return;
-  const { pkg, swarm, chain } = result;
+  const { pkg, swarm, chain, allocation } = result;
 
   // Now make the on-chain call. If this fails, we mark the swarm as failed
   // but don't roll back the DB row (lets us retry / debug).
@@ -104,14 +125,19 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
     const { sdk, coordinator } = getSolana();
     const onChainPkg = new PublicKey(pkg.onChainPackage!);
 
+    const paymentByAgent = new Map(
+      allocation.payments.map((p) => [p.agentPubkey, p.totalSol]),
+    );
     const { swarm: swarmPda, signature } = await coordinatorFormAndAssignSwarm(
       sdk,
       coordinator,
       onChainPkg,
-      solToLamports(chain.totalCostSol),
+      solToLamports(allocation.totalPaidSol),
       chain.bids.map((bid) => ({
         courier: new PublicKey(bid.agentPubkey),
-        paymentLamports: solToLamports(bid.costSol),
+        paymentLamports: solToLamports(
+          paymentByAgent.get(bid.agentPubkey) ?? bid.costSol,
+        ),
       })),
     );
 

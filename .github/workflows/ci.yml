@@ -101,3 +101,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
+
+      - name: Semgrep (SAST)
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/default
+            p/typescript
+            p/owasp-top-ten
+            p/nodejs
+        env:
+          SEMGREP_APP_TOKEN: ""
+        continue-on-error: true

@@ -6,14 +6,19 @@ interface StatusBarProps {
   bidsTotal: number;
   agentsTotal: number;
   view: string;
-  onViewChange: (view: "map" | "shipper" | "courier" | "economy") => void;
+  onViewChange: (view: "map" | "shipper" | "courier" | "economy" | "reputation") => void;
 }
 
-const VIEWS: Array<{ key: "economy" | "map" | "shipper" | "courier"; label: string; idx: string }> = [
+const VIEWS: Array<{
+  key: "economy" | "map" | "shipper" | "courier" | "reputation";
+  label: string;
+  idx: string;
+}> = [
   { key: "economy", label: "OBSERVATORY", idx: "01" },
   { key: "map", label: "SWARM MAP", idx: "02" },
   { key: "shipper", label: "DISPATCH", idx: "03" },
   { key: "courier", label: "COURIERS", idx: "04" },
+  { key: "reputation", label: "REPUTATION", idx: "05" },
 ];
 
 export function StatusBar({
