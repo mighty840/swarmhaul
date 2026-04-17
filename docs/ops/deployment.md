@@ -11,7 +11,7 @@ Database + agents are internal to the `swarmhaul` Orca network.
 1. **Devnet program deployed.** Run `scripts/devnet-setup.sh` (see
    top of the file for the faucet workflow). Capture the printed
    `PROGRAM_ID` and `COORDINATOR` pubkey.
-2. **Three agent keypairs generated** (e.g. in `/tmp/swarmhaul-devnet/`).
+2. **Three agent keypairs generated** (e.g. in `/tmp/swarmhaul-e2e/`).
    Each needs a small SOL balance on devnet for signature fees if it
    ever signs directly (the current agent daemon only POSTs to the
    API, so balance is optional today but useful for the near-future
@@ -46,11 +46,11 @@ orca secrets set LITELLM_API_KEY "sk-…"
 orca secrets set SWARMHAUL_COORDINATOR_KEYPAIR_B64 \
   "$(base64 -w0 ~/.config/solana/swarmhaul-devnet.json)"
 orca secrets set SWARMHAUL_AGENT_ALPHA_KEYPAIR_B64 \
-  "$(base64 -w0 /tmp/swarmhaul-devnet/keypair-alpha.json)"
+  "$(base64 -w0 /tmp/swarmhaul-e2e/keypair-alpha.json)"
 orca secrets set SWARMHAUL_AGENT_BRAVO_KEYPAIR_B64 \
-  "$(base64 -w0 /tmp/swarmhaul-devnet/keypair-bravo.json)"
+  "$(base64 -w0 /tmp/swarmhaul-e2e/keypair-bravo.json)"
 orca secrets set SWARMHAUL_AGENT_CHARLIE_KEYPAIR_B64 \
-  "$(base64 -w0 /tmp/swarmhaul-devnet/keypair-charlie.json)"
+  "$(base64 -w0 /tmp/swarmhaul-e2e/keypair-charlie.json)"
 ```
 
 The API and agent entrypoints decode the `*_KEYPAIR_B64` env into a
