@@ -3,6 +3,7 @@ import { useSwarmData } from "./hooks/useSwarm.js";
 import { StatusBar, type ViewKey } from "./components/StatusBar.js";
 import { Ticker } from "./components/Ticker.js";
 import { ErrorProvider } from "./components/ErrorBanner.js";
+import { WalletAdapterProvider } from "./providers/WalletProvider.js";
 import { SwarmMap } from "./pages/SwarmMap.js";
 import { ShipperView } from "./pages/ShipperView.js";
 import { CourierView } from "./pages/CourierView.js";
@@ -86,8 +87,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <ErrorProvider>
-      <AppShell />
-    </ErrorProvider>
+    <WalletAdapterProvider>
+      <ErrorProvider>
+        <AppShell />
+      </ErrorProvider>
+    </WalletAdapterProvider>
   );
 }

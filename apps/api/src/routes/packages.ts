@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { z } from "zod";
 import { Transaction, PublicKey } from "@solana/web3.js";
+import { randomUUID } from "node:crypto";
 import {
   buildListPackageIx,
   buildCancelPackageIx,
@@ -9,10 +10,17 @@ import {
 import { prisma } from "../db/client.js";
 import { broadcast } from "../services/ws-broadcaster.js";
 import { getSolana, explorerUrl, explorerTxUrl } from "../services/solana.js";
-import { PackageCreateBody, PackageIdParam } from "../schemas/index.js";
+import {
+  PackageCreateBody,
+  PackageIdParam,
+  PackageBuildTxBody,
+  PackageConfirmBody,
+} from "../schemas/index.js";
 
 type PackageBody = z.infer<typeof PackageCreateBody>;
 type PackageParams = z.infer<typeof PackageIdParam>;
+type PackageBuildTxType = z.infer<typeof PackageBuildTxBody>;
+type PackageConfirmType = z.infer<typeof PackageConfirmBody>;
 
 function solToLamports(sol: number): bigint {
   return BigInt(Math.round(sol * 1_000_000_000));
@@ -120,6 +128,150 @@ export async function packageRoutes(app: FastifyInstance) {
         });
         return reply.code(500).send({
           error: "Failed to list package on-chain",
+          details: String(err),
+        });
+      }
+    },
+  );
+
+  // Wallet-signed dispatch — step 1: build an unsigned list_package tx
+  // for the shipper's wallet to sign. We do NOT persist to the DB yet;
+  // persistence happens in /confirm once the tx lands on chain. This
+  // avoids orphan rows if the user never signs.
+  app.post(
+    "/build-tx",
+    { schema: { body: PackageBuildTxBody } },
+    async (req, reply) => {
+      const body = req.body as PackageBuildTxType;
+
+      // If authed, ensure the shipper pubkey in body is the signer
+      if (req.authedPubkey && req.authedPubkey !== body.shipperPubkey) {
+        return reply.code(403).send({
+          error: "shipperPubkey must match authed wallet",
+        });
+      }
+
+      try {
+        const { sdk, coordinator } = getSolana();
+        const packageId = randomUUID();
+        const idBytes = uuidToBytes(packageId);
+        const shipper = new PublicKey(body.shipperPubkey);
+
+        const {
+          ix,
+          package: pkgPda,
+          vault: vPda,
+        } = await buildListPackageIx(sdk, {
+          shipper,
+          packageId: idBytes,
+          maxBudgetLamports: solToLamports(body.maxBudgetSol),
+          coordinator: coordinator.publicKey,
+        });
+
+        const { blockhash, lastValidBlockHeight } =
+          await sdk.connection.getLatestBlockhash();
+
+        const tx = new Transaction().add(ix);
+        tx.feePayer = shipper;
+        tx.recentBlockhash = blockhash;
+
+        const serialized = tx
+          .serialize({ requireAllSignatures: false, verifySignatures: false })
+          .toString("base64");
+
+        return reply.code(200).send({
+          packageId,
+          transaction: serialized,
+          onChainPackage: pkgPda.toBase58(),
+          onChainVault: vPda.toBase58(),
+          blockhash,
+          lastValidBlockHeight,
+        });
+      } catch (err) {
+        app.log.error({ err }, "build_list_package_tx failed");
+        return reply.code(500).send({
+          error: "Failed to build list_package tx",
+          details: String(err),
+        });
+      }
+    },
+  );
+
+  // Wallet-signed dispatch — step 2: verify the signed tx landed on
+  // chain, then persist the package row.
+  app.post(
+    "/confirm",
+    { schema: { body: PackageConfirmBody } },
+    async (req, reply) => {
+      const body = req.body as PackageConfirmType;
+
+      if (req.authedPubkey && req.authedPubkey !== body.shipperPubkey) {
+        return reply.code(403).send({
+          error: "shipperPubkey must match authed wallet",
+        });
+      }
+
+      try {
+        const { sdk } = getSolana();
+
+        // Verify the tx actually landed and references our program
+        const confirmed = await sdk.connection.confirmTransaction(
+          body.signature,
+          "confirmed",
+        );
+        if (confirmed.value.err) {
+          return reply.code(400).send({
+            error: "Transaction failed on-chain",
+            details: JSON.stringify(confirmed.value.err),
+          });
+        }
+
+        const pkg = await prisma.package.create({
+          data: {
+            id: body.packageId,
+            shipperPubkey: body.shipperPubkey,
+            originLat: body.originLat,
+            originLng: body.originLng,
+            destLat: body.destLat,
+            destLng: body.destLng,
+            description: body.description,
+            weightKg: body.weightKg,
+            volumeLitres: body.volumeLitres,
+            maxBudgetSol: body.maxBudgetSol,
+            onChainPackage: body.onChainPackage,
+            onChainVault: body.onChainVault,
+            listSignature: body.signature,
+            status: "listed",
+          },
+        });
+
+        broadcast({
+          type: "PACKAGE_LISTED",
+          package: {
+            id: pkg.id,
+            shipper: pkg.shipperPubkey,
+            origin: { lat: pkg.originLat, lng: pkg.originLng },
+            destination: { lat: pkg.destLat, lng: pkg.destLng },
+            description: pkg.description,
+            weightKg: pkg.weightKg,
+            volumeLitres: pkg.volumeLitres,
+            maxBudgetSol: pkg.maxBudgetSol,
+            status: "listed",
+            listedAt: pkg.listedAt,
+          },
+        });
+
+        return reply.code(201).send({
+          ...pkg,
+          links: {
+            explorer: explorerUrl(body.onChainPackage),
+            listTx: explorerTxUrl(body.signature),
+          },
+        });
+      } catch (err) {
+        app.log.error({ err }, "confirm_list_package failed");
+        return reply.code(500).send({
+          error: "Failed to confirm package",
           details: String(err),
         });
       }
