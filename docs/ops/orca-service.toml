@@ -50,6 +50,7 @@ SOLANA_RPC_URL = "https://api.devnet.solana.com"
 SOLANA_CLUSTER = "devnet"
 LITELLM_API_KEY = "${secrets.LITELLM_API_KEY}"
 SWARMHAUL_COORDINATOR_KEYPAIR_B64 = "${secrets.SWARMHAUL_COORDINATOR_KEYPAIR_B64}"
+ALLOWED_ORIGINS = "https://dashboard.swarmhaul.defited.com,http://localhost:5173"
 [service.resources]
 memory = "512Mi"
 cpu = 1.0
