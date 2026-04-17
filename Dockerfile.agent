@@ -18,7 +18,7 @@ RUN bun install --frozen-lockfile
 
 COPY apps/agent apps/agent
 COPY packages/types packages/types
-COPY tsconfig.json* ./
+COPY tsconfig.base.json ./
 
 FROM oven/bun:1.2.12-slim AS runtime
 WORKDIR /app
