@@ -66,12 +66,12 @@ export function ShipperView() {
     <div className="max-w-3xl mx-auto space-y-5 glitch-in">
       <div className="border-b border-[var(--color-line)] pb-4">
         <div className="label mb-2">▸ DISPATCH TERMINAL</div>
-        <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light">
-          <span className="editorial text-[var(--color-magenta)]">post</span> a task
+        <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light text-[var(--color-bone)]">
+          <span className="display-serif text-[var(--color-magenta)]">Post</span> a Task
         </h1>
-        <p className="text-[11px] text-[var(--color-dim)] mt-3 max-w-lg leading-relaxed">
-          List a package for autonomous agent fulfillment. Bids will arrive
-          within seconds. Funds escrow in a Solana PDA vault until each leg is
+        <p className="text-[12px] text-[var(--color-steel)] mt-3 max-w-lg leading-relaxed">
+          List a package for autonomous agent fulfillment. Bids arrive within
+          seconds. Funds escrow in a Solana PDA vault until each leg is
           confirmed on-chain.
         </p>
       </div>
@@ -176,8 +176,8 @@ export function ShipperView() {
             >
               {submitting ? "DISPATCHING…" : "▸ DISPATCH ORDER"}
             </button>
-            <span className="text-[10px] text-[var(--color-dim)] tracking-[0.12em] uppercase">
-              {form.maxBudgetSol} SOL will be locked in escrow PDA
+            <span className="text-[10px] text-[var(--color-steel)] tracking-[0.12em] uppercase font-semibold">
+              {form.maxBudgetSol} SOL WILL BE LOCKED IN ESCROW PDA
             </span>
           </div>
 
@@ -209,7 +209,7 @@ export function ShipperView() {
             <div className="stat-num-sm text-[var(--color-phosphor)]">
               {item.value}
             </div>
-            <div className="text-[9px] text-[var(--color-dim)] mt-1 tracking-[0.14em]">
+            <div className="text-[9px] text-[var(--color-steel)] mt-1 tracking-[0.14em] font-semibold uppercase">
               {item.note}
             </div>
           </div>

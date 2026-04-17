@@ -1,18 +1,39 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSwarmData } from "./hooks/useSwarm.js";
-import { StatusBar } from "./components/StatusBar.js";
+import { StatusBar, type ViewKey } from "./components/StatusBar.js";
 import { Ticker } from "./components/Ticker.js";
+import { ErrorProvider } from "./components/ErrorBanner.js";
 import { SwarmMap } from "./pages/SwarmMap.js";
 import { ShipperView } from "./pages/ShipperView.js";
 import { CourierView } from "./pages/CourierView.js";
 import { EconomyView } from "./pages/EconomyView.js";
 import { ReputationModelView } from "./pages/ReputationModelView.js";
+import { SwarmDetailView } from "./pages/SwarmDetailView.js";
 
-type View = "map" | "shipper" | "courier" | "economy" | "reputation";
-
-export default function App() {
-  const [view, setView] = useState<View>("economy");
+function AppShell() {
+  const [view, setView] = useState<ViewKey>("economy");
+  const [detailPackageId, setDetailPackageId] = useState<string | null>(null);
+  const [returnView, setReturnView] = useState<ViewKey>("economy");
   const data = useSwarmData();
+
+  const openSwarm = useCallback(
+    (packageId: string) => {
+      setReturnView(view === "swarm-detail" ? returnView : view);
+      setDetailPackageId(packageId);
+      setView("swarm-detail");
+    },
+    [view, returnView],
+  );
+
+  const handleViewChange = useCallback((next: ViewKey) => {
+    setView(next);
+    if (next !== "swarm-detail") setDetailPackageId(null);
+  }, []);
+
+  const goBack = useCallback(() => {
+    setView(returnView);
+    setDetailPackageId(null);
+  }, [returnView]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -22,7 +43,7 @@ export default function App() {
         bidsTotal={data.stats?.bids.total ?? 0}
         agentsTotal={data.stats?.agents.total ?? 0}
         view={view}
-        onViewChange={setView}
+        onViewChange={handleViewChange}
       />
       <Ticker events={data.wsEvents} />
 
@@ -33,15 +54,25 @@ export default function App() {
             activity={data.activity}
             leaderboard={data.leaderboard}
             wsEvents={data.wsEvents}
+            onOpenSwarm={openSwarm}
           />
         )}
-        {view === "map" && <SwarmMap packages={data.packages} />}
+        {view === "map" && (
+          <SwarmMap packages={data.packages} onOpenSwarm={openSwarm} />
+        )}
         {view === "shipper" && <ShipperView />}
         {view === "courier" && <CourierView leaderboard={data.leaderboard} />}
         {view === "reputation" && <ReputationModelView />}
+        {view === "swarm-detail" && detailPackageId && (
+          <SwarmDetailView
+            packageId={detailPackageId}
+            leaderboard={data.leaderboard}
+            onBack={goBack}
+          />
+        )}
       </main>
 
-      <footer className="border-t border-[var(--color-line)] bg-[var(--color-graphite)] px-4 h-7 flex items-center justify-between text-[9px] tracking-[0.16em] uppercase text-[var(--color-dim)]">
+      <footer className="border-t border-[var(--color-line)] bg-[var(--color-graphite)] px-4 h-7 flex items-center justify-between text-[9px] tracking-[0.16em] uppercase text-[var(--color-steel)] font-semibold">
         <div>SWARMHAUL ▸ MULTI-AGENT COORDINATION PROTOCOL ▸ SOLANA</div>
         <div className="flex items-center gap-4">
           <span>RFB-05 // RFB-02 // RFB-01</span>
@@ -50,5 +81,13 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorProvider>
+      <AppShell />
+    </ErrorProvider>
   );
 }

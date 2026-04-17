@@ -10,6 +10,7 @@
  * future MCP tooling.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useErrorReporter } from "../components/ErrorBanner.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -83,6 +84,7 @@ function useModelData() {
     baseScore: number;
     rows: SelfEstimateRow[];
   } | null>(null);
+  const { push } = useErrorReporter();
 
   useEffect(() => {
     Promise.all([
@@ -99,8 +101,13 @@ function useModelData() {
         setAsymmetry(asym.rows);
         setSelfEstimate(selfEst);
       })
-      .catch((err) => console.error("[reputation-model] fetch failed", err));
-  }, []);
+      .catch((err) => {
+        push(
+          `Reputation model endpoints unreachable: ${err?.message ?? err}`,
+          "reputation-model",
+        );
+      });
+  }, [push]);
 
   return { config, events, scenarios, asymmetry, selfEstimate };
 }
@@ -165,7 +172,7 @@ function TrajectoryChart({
             y={y(v) + 3}
             textAnchor="end"
             fontSize={9}
-            fill="var(--color-dim)"
+            fill="var(--color-steel)"
             fontFamily="monospace"
           >
             {v.toFixed(2)}
@@ -262,7 +269,7 @@ function BarRow({ label, value, max, color = "var(--color-phosphor, #00ff9c)" }:
   const pct = Math.min(100, (value / max) * 100);
   return (
     <div className="flex items-center gap-3">
-      <div className="text-[10px] tracking-[0.1em] text-[var(--color-dim)] w-48 truncate">
+      <div className="text-[10px] tracking-[0.1em] text-[var(--color-steel)] w-48 truncate">
         {label}
       </div>
       <div className="flex-1 h-2 bg-[var(--color-line)] relative">
@@ -295,6 +302,7 @@ function PaymentAllocationSimulator() {
     { name: "Newcomer (0.3)", bidSol: 0.1, reputationScore: 0.3 },
   ]);
   const [result, setResult] = useState<PaymentBreakdown | null>(null);
+  const { push } = useErrorReporter();
 
   useEffect(() => {
     fetch(`${API_URL}/reputation-model/allocate-payments`, {
@@ -311,8 +319,13 @@ function PaymentAllocationSimulator() {
     })
       .then((r) => r.json())
       .then(setResult)
-      .catch(() => {});
-  }, [agents, budget, fairnessFloor]);
+      .catch((err) => {
+        push(
+          `Payment simulator call failed: ${err?.message ?? err}`,
+          "payment-sim",
+        );
+      });
+  }, [agents, budget, fairnessFloor, push]);
 
   const updateAgent = (i: number, patch: Partial<SimAgent>) => {
     setAgents((prev) => prev.map((a, j) => (i === j ? { ...a, ...patch } : a)));
@@ -329,14 +342,14 @@ function PaymentAllocationSimulator() {
           <div className="text-[10px] tracking-[0.18em] uppercase text-[var(--color-ash)]">
             REWARD DISTRIBUTION ▸ SIMULATOR
           </div>
-          <div className="editorial text-[12px] text-[var(--color-dim)] mt-0.5">
+          <div className="text-[12px] text-[var(--color-steel)] mt-0.5">
             /surplus split by softened weight:{" "}
             <span className="font-mono">w_i = α + (1−α) × rep_i</span>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-[10px] tracking-[0.1em] text-[var(--color-dim)]">
+            <label className="text-[10px] tracking-[0.1em] text-[var(--color-steel)]">
               α (FAIRNESS FLOOR)
             </label>
             <input
@@ -353,7 +366,7 @@ function PaymentAllocationSimulator() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-[10px] tracking-[0.1em] text-[var(--color-dim)]">
+            <label className="text-[10px] tracking-[0.1em] text-[var(--color-steel)]">
               BUDGET
             </label>
             <input
@@ -364,14 +377,14 @@ function PaymentAllocationSimulator() {
               onChange={(e) => setBudget(Number(e.target.value))}
               className="bg-[var(--color-void,#06060a)] border border-[var(--color-line)] px-2 py-1 text-[11px] tabular-nums text-[var(--color-bone)] w-20 font-mono"
             />
-            <span className="text-[10px] text-[var(--color-dim)]">SOL</span>
+            <span className="text-[10px] text-[var(--color-steel)]">SOL</span>
           </div>
         </div>
       </div>
 
       <table className="w-full text-[10px] mb-4">
         <thead>
-          <tr className="text-[var(--color-dim)] tracking-[0.1em]">
+          <tr className="text-[var(--color-steel)] tracking-[0.1em]">
             <th className="text-left font-normal pb-2">AGENT</th>
             <th className="text-right font-normal pb-2">BID (SOL)</th>
             <th className="text-right font-normal pb-2">REP</th>
@@ -412,25 +425,25 @@ function PaymentAllocationSimulator() {
         <div>
           <div className="grid grid-cols-4 gap-2 mb-3 text-[10px]">
             <div>
-              <div className="text-[var(--color-dim)] tracking-[0.1em]">BIDS SUM</div>
+              <div className="text-[var(--color-steel)] tracking-[0.1em]">BIDS SUM</div>
               <div className="text-[var(--color-bone)] tabular-nums">
                 {result.totalBidSol.toFixed(3)}
               </div>
             </div>
             <div>
-              <div className="text-[var(--color-dim)] tracking-[0.1em]">SURPLUS</div>
+              <div className="text-[var(--color-steel)] tracking-[0.1em]">SURPLUS</div>
               <div className="text-[var(--color-amber,#ffb800)] tabular-nums">
                 {result.surplusSol.toFixed(3)}
               </div>
             </div>
             <div>
-              <div className="text-[var(--color-dim)] tracking-[0.1em]">PAID OUT</div>
+              <div className="text-[var(--color-steel)] tracking-[0.1em]">PAID OUT</div>
               <div className="text-[var(--color-phosphor,#00ff9c)] tabular-nums">
                 {result.totalPaidSol.toFixed(3)}
               </div>
             </div>
             <div>
-              <div className="text-[var(--color-dim)] tracking-[0.1em]">BUDGET</div>
+              <div className="text-[var(--color-steel)] tracking-[0.1em]">BUDGET</div>
               <div className="text-[var(--color-bone)] tabular-nums">
                 {result.maxBudgetSol.toFixed(3)}
               </div>
@@ -464,7 +477,7 @@ function PaymentAllocationSimulator() {
             ))}
           </div>
 
-          <div className="mt-3 text-[9px] tracking-[0.1em] text-[var(--color-dim)]">
+          <div className="mt-3 text-[9px] tracking-[0.1em] text-[var(--color-steel)]">
             <span className="inline-block w-2 h-2 bg-[var(--color-cyan,#00d4ff)] mr-1" />
             BASE BID
             <span className="inline-block w-2 h-2 bg-[var(--color-phosphor,#00ff9c)] ml-4 mr-1" />
@@ -498,14 +511,14 @@ function FormationNudgePanel() {
           <div className="text-[10px] tracking-[0.18em] uppercase text-[var(--color-ash)]">
             SWARM FORMATION ▸ NUDGE
           </div>
-          <div className="editorial text-[12px] text-[var(--color-dim)] mt-0.5">
+          <div className="text-[12px] text-[var(--color-steel)] mt-0.5">
             /effective cost for chain comparison:{" "}
             <span className="font-mono">c_eff = c_raw × (1 − γ × (r̄ − 0.5))</span>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-[10px] tracking-[0.1em] text-[var(--color-dim)]">
+            <label className="text-[10px] tracking-[0.1em] text-[var(--color-steel)]">
               γ (NUDGE STRENGTH)
             </label>
             <input
@@ -522,7 +535,7 @@ function FormationNudgePanel() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-[10px] tracking-[0.1em] text-[var(--color-dim)]">
+            <label className="text-[10px] tracking-[0.1em] text-[var(--color-steel)]">
               RAW COST
             </label>
             <input
@@ -533,7 +546,7 @@ function FormationNudgePanel() {
               onChange={(e) => setRawCost(Number(e.target.value))}
               className="bg-[var(--color-void,#06060a)] border border-[var(--color-line)] px-2 py-1 text-[11px] tabular-nums text-[var(--color-bone)] w-20 font-mono"
             />
-            <span className="text-[10px] text-[var(--color-dim)]">SOL</span>
+            <span className="text-[10px] text-[var(--color-steel)]">SOL</span>
           </div>
         </div>
       </div>
@@ -543,7 +556,7 @@ function FormationNudgePanel() {
           const width = ((r.effective - minE) / Math.max(maxE - minE, 1e-9)) * 100;
           return (
             <div key={r.rep} className="flex items-center gap-3 text-[10px]">
-              <div className="tabular-nums text-[var(--color-dim)] w-24">
+              <div className="tabular-nums text-[var(--color-steel)] w-24">
                 avg rep = {r.rep.toFixed(1)}
               </div>
               <div className="flex-1 relative h-4 bg-[var(--color-void,#06060a)] border border-[var(--color-line)]">
@@ -569,7 +582,7 @@ function FormationNudgePanel() {
                     ? "text-[var(--color-phosphor,#00ff9c)]"
                     : r.pct > 0
                       ? "text-[var(--color-magenta,#ff2d8a)]"
-                      : "text-[var(--color-dim)]"
+                      : "text-[var(--color-steel)]"
                 }`}
               >
                 {r.pct >= 0 ? "+" : ""}
@@ -580,7 +593,7 @@ function FormationNudgePanel() {
         })}
       </div>
 
-      <div className="mt-3 pt-3 border-t border-[var(--color-line)] text-[11px] editorial text-[var(--color-ash)]">
+      <div className="mt-3 pt-3 border-t border-[var(--color-line)] text-[11px] text-[var(--color-ash)]">
         Total swing across the full reputation range: max{" "}
         <span className="text-[var(--color-bone)] tabular-nums">
           {(gamma * 100).toFixed(1)}%
@@ -605,7 +618,7 @@ export function ReputationModelView() {
 
   if (!config) {
     return (
-      <div className="text-[var(--color-dim)] text-[11px] tracking-[0.1em] uppercase p-8">
+      <div className="text-[var(--color-steel)] text-[11px] tracking-[0.1em] uppercase p-8">
         Loading reputation model…
       </div>
     );
@@ -620,10 +633,10 @@ export function ReputationModelView() {
             <div className="text-[10px] tracking-[0.2em] uppercase text-[var(--color-phosphor,#00ff9c)]">
               RFB-01 ▸ REPUTATION MODEL
             </div>
-            <div className="editorial text-[22px] text-[var(--color-bone)] mt-1">
+            <div className="text-[22px] text-[var(--color-bone)] mt-1">
               SwarmHaul Reputation Engine
             </div>
-            <div className="editorial text-[13px] text-[var(--color-ash)] mt-0.5 max-w-3xl">
+            <div className="text-[13px] text-[var(--color-ash)] mt-0.5 max-w-3xl">
               /peer-to-peer scoring with skewed ramps — gaining is hard, losing is fast.
               Reputation nudges both swarm formation and reward distribution
               with small, bounded, auditable effects.
@@ -632,19 +645,19 @@ export function ReputationModelView() {
 
           <div className="grid grid-cols-3 gap-4 text-right">
             <div>
-              <div className="text-[9px] tracking-[0.15em] text-[var(--color-dim)]">BASE</div>
+              <div className="text-[9px] tracking-[0.15em] text-[var(--color-steel)]">BASE</div>
               <div className="text-[18px] tabular-nums text-[var(--color-bone)]">
                 {config.baseScore.toFixed(2)}
               </div>
             </div>
             <div>
-              <div className="text-[9px] tracking-[0.15em] text-[var(--color-dim)]">CEILING</div>
+              <div className="text-[9px] tracking-[0.15em] text-[var(--color-steel)]">CEILING</div>
               <div className="text-[18px] tabular-nums text-[var(--color-amber,#ffb800)]">
                 {config.firstMeetingCeiling.toFixed(2)}
               </div>
             </div>
             <div>
-              <div className="text-[9px] tracking-[0.15em] text-[var(--color-dim)]">GAIN FACTOR</div>
+              <div className="text-[9px] tracking-[0.15em] text-[var(--color-steel)]">GAIN FACTOR</div>
               <div className="text-[18px] tabular-nums text-[var(--color-bone)]">
                 {config.gainFactor.toFixed(2)}
               </div>
@@ -662,7 +675,7 @@ export function ReputationModelView() {
               <div className="text-[10px] tracking-[0.18em] uppercase text-[var(--color-ash)]">
                 SCENARIO PROJECTION
               </div>
-              <div className="editorial text-[12px] text-[var(--color-dim)] mt-0.5">
+              <div className="text-[12px] text-[var(--color-steel)] mt-0.5">
                 /trajectories replayed from the event log
               </div>
             </div>
@@ -674,7 +687,7 @@ export function ReputationModelView() {
                   className={`px-2.5 py-1 text-[9px] tracking-[0.15em] uppercase border ${
                     activeScenario === s.id
                       ? "border-[var(--color-phosphor,#00ff9c)] text-[var(--color-phosphor,#00ff9c)]"
-                      : "border-[var(--color-line)] text-[var(--color-dim)] hover:text-[var(--color-bone)]"
+                      : "border-[var(--color-line)] text-[var(--color-steel)] hover:text-[var(--color-bone)]"
                   }`}
                 >
                   {s.id.replace(/-/g, " ")}
@@ -700,19 +713,19 @@ export function ReputationModelView() {
 
               <div className="grid grid-cols-3 gap-3 mt-3 text-[10px]">
                 <div>
-                  <div className="text-[var(--color-dim)] tracking-[0.1em]">START</div>
+                  <div className="text-[var(--color-steel)] tracking-[0.1em]">START</div>
                   <div className="text-[var(--color-bone)] tabular-nums text-[14px]">
                     {currentScenario.points[0]?.score.toFixed(3)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[var(--color-dim)] tracking-[0.1em]">PEAK</div>
+                  <div className="text-[var(--color-steel)] tracking-[0.1em]">PEAK</div>
                   <div className="text-[var(--color-phosphor,#00ff9c)] tabular-nums text-[14px]">
                     {Math.max(...currentScenario.points.map((p) => p.score)).toFixed(3)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[var(--color-dim)] tracking-[0.1em]">FINAL</div>
+                  <div className="text-[var(--color-steel)] tracking-[0.1em]">FINAL</div>
                   <div className="text-[var(--color-bone)] tabular-nums text-[14px]">
                     {currentScenario.points[currentScenario.points.length - 1]?.score.toFixed(3)}
                   </div>
@@ -720,10 +733,10 @@ export function ReputationModelView() {
               </div>
 
               <div className="mt-3 pt-3 border-t border-[var(--color-line)]">
-                <div className="text-[9px] tracking-[0.18em] uppercase text-[var(--color-dim)] mb-1">
+                <div className="text-[9px] tracking-[0.18em] uppercase text-[var(--color-steel)] mb-1">
                   INSIGHT
                 </div>
-                <div className="text-[11px] editorial text-[var(--color-ash)]">
+                <div className="text-[11px] text-[var(--color-ash)]">
                   {currentScenario.insight}
                 </div>
               </div>
@@ -736,7 +749,7 @@ export function ReputationModelView() {
           <div className="text-[10px] tracking-[0.18em] uppercase text-[var(--color-ash)] mb-1">
             EVENT TAXONOMY
           </div>
-          <div className="editorial text-[12px] text-[var(--color-dim)] mb-4">
+          <div className="text-[12px] text-[var(--color-steel)] mb-4">
             /signed deltas applied to the score
           </div>
 
@@ -769,13 +782,13 @@ export function ReputationModelView() {
           <div className="text-[10px] tracking-[0.18em] uppercase text-[var(--color-ash)] mb-1">
             GAIN vs LOSS ASYMMETRY
           </div>
-          <div className="editorial text-[12px] text-[var(--color-dim)] mb-4">
+          <div className="text-[12px] text-[var(--color-steel)] mb-4">
             /how much harder it is to gain than to lose, at each score level
           </div>
 
           <table className="w-full text-[10px]">
             <thead>
-              <tr className="text-[var(--color-dim)] tracking-[0.1em]">
+              <tr className="text-[var(--color-steel)] tracking-[0.1em]">
                 <th className="text-left font-normal pb-2">SCORE</th>
                 <th className="text-right font-normal pb-2">+ GAIN</th>
                 <th className="text-right font-normal pb-2">− LOSS</th>
@@ -802,7 +815,7 @@ export function ReputationModelView() {
             </tbody>
           </table>
 
-          <div className="mt-3 text-[11px] editorial text-[var(--color-ash)]">
+          <div className="mt-3 text-[11px] text-[var(--color-ash)]">
             At score 0.9, a single breach costs what 320 successful deliveries would build.
             Sybil-resistant by construction.
           </div>
@@ -814,7 +827,7 @@ export function ReputationModelView() {
             <div className="text-[10px] tracking-[0.18em] uppercase text-[var(--color-ash)] mb-1">
               FIRST-MEETING SELF-ESTIMATE
             </div>
-            <div className="editorial text-[12px] text-[var(--color-dim)] mb-4">
+            <div className="text-[12px] text-[var(--color-steel)] mb-4">
               /score assigned to unknown actors — hard cap at {selfEstimate.ceiling.toFixed(2)}
             </div>
 
@@ -834,7 +847,7 @@ export function ReputationModelView() {
               ))}
             </div>
 
-            <div className="mt-3 text-[11px] editorial text-[var(--color-ash)]">
+            <div className="mt-3 text-[11px] text-[var(--color-ash)]">
               No amount of credentials or referrals bypasses direct observation —
               reputation must be earned, not imported.
             </div>
@@ -849,7 +862,7 @@ export function ReputationModelView() {
       <PaymentAllocationSimulator />
 
       {/* Footer note */}
-      <div className="text-[10px] tracking-[0.12em] uppercase text-[var(--color-dim)] px-2">
+      <div className="text-[10px] tracking-[0.12em] uppercase text-[var(--color-steel)] px-2">
         MODEL LIVES AT apps/api/src/services/reputation-engine.ts ▸ SOURCED FROM /reputation-model/*
       </div>
     </div>

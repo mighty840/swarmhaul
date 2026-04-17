@@ -1,16 +1,24 @@
 import { useEffect, useState } from "react";
 
+export type ViewKey =
+  | "economy"
+  | "map"
+  | "shipper"
+  | "courier"
+  | "reputation"
+  | "swarm-detail";
+
 interface StatusBarProps {
   connected: boolean;
   packagesActive: number;
   bidsTotal: number;
   agentsTotal: number;
-  view: string;
-  onViewChange: (view: "map" | "shipper" | "courier" | "economy" | "reputation") => void;
+  view: ViewKey;
+  onViewChange: (view: ViewKey) => void;
 }
 
 const VIEWS: Array<{
-  key: "economy" | "map" | "shipper" | "courier" | "reputation";
+  key: Exclude<ViewKey, "swarm-detail">;
   label: string;
   idx: string;
 }> = [
@@ -40,29 +48,35 @@ export function StatusBar({
     .replace("T", " ")
     .replace(/\.\d+Z/, " UTC");
 
+  const handleConnectWallet = () => {
+    window.alert(
+      "Wallet flow ships in the next PR (devnet + Phantom signing). Stay tuned.",
+    );
+  };
+
   return (
     <header className="border-b border-[var(--color-line)] bg-[var(--color-graphite)]">
       {/* Top row: brand + time + status */}
-      <div className="flex items-center justify-between px-4 h-10 border-b border-[var(--color-line)]">
+      <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--color-line)]">
         <div className="flex items-center gap-5">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2.5">
             <span className="text-[15px] font-bold tracking-[0.04em] text-[var(--color-bone)]">
               SWARMHAUL
             </span>
-            <span className="editorial text-[12px] text-[var(--color-ash)]">
-              /agent coordination protocol
+            <span className="text-[10px] tracking-[0.14em] uppercase text-[var(--color-steel)]">
+              / AGENT COORDINATION PROTOCOL
             </span>
           </div>
 
           <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 border border-[var(--color-line-hot)]">
-            <span className="text-[9px] tracking-[0.16em] text-[var(--color-dim)]">
+            <span className="text-[9px] tracking-[0.16em] text-[var(--color-ash)]">
               v0.1.0
             </span>
           </div>
 
           <div className="hidden md:flex items-center gap-1.5">
             <div className={connected ? "dot-live" : "dot-dead"} />
-            <span className="text-[9px] tracking-[0.16em] uppercase text-[var(--color-ash)]">
+            <span className="text-[9px] font-semibold tracking-[0.16em] uppercase text-[var(--color-steel)]">
               {connected ? "DEVNET ── LINKED" : "OFFLINE"}
             </span>
           </div>
@@ -70,29 +84,40 @@ export function StatusBar({
 
         <div className="flex items-center gap-5">
           <div className="hidden lg:flex items-center gap-4 text-[10px]">
-            <span className="text-[var(--color-dim)] tracking-[0.14em]">
-              PKG <span className="text-[var(--color-bone)] font-medium">{packagesActive}</span>
+            <span className="text-[var(--color-ash)] tracking-[0.14em]">
+              PKG{" "}
+              <span className="text-[var(--color-bone)] font-semibold tabular-nums">
+                {packagesActive}
+              </span>
             </span>
             <span className="text-[var(--color-faint)]">│</span>
-            <span className="text-[var(--color-dim)] tracking-[0.14em]">
-              BID <span className="text-[var(--color-bone)] font-medium">{bidsTotal}</span>
+            <span className="text-[var(--color-ash)] tracking-[0.14em]">
+              BID{" "}
+              <span className="text-[var(--color-bone)] font-semibold tabular-nums">
+                {bidsTotal}
+              </span>
             </span>
             <span className="text-[var(--color-faint)]">│</span>
-            <span className="text-[var(--color-dim)] tracking-[0.14em]">
-              AGT <span className="text-[var(--color-bone)] font-medium">{agentsTotal}</span>
+            <span className="text-[var(--color-ash)] tracking-[0.14em]">
+              AGT{" "}
+              <span className="text-[var(--color-bone)] font-semibold tabular-nums">
+                {agentsTotal}
+              </span>
             </span>
           </div>
 
-          <span className="text-[10px] tracking-[0.1em] text-[var(--color-dim)] tabular-nums">
+          <span className="text-[10px] tracking-[0.1em] text-[var(--color-steel)] tabular-nums">
             {ts}
           </span>
 
-          <button className="btn-primary">CONNECT WALLET</button>
+          <button className="btn-primary" onClick={handleConnectWallet}>
+            CONNECT WALLET
+          </button>
         </div>
       </div>
 
       {/* Nav row */}
-      <div className="flex items-center px-4 h-10">
+      <div className="flex items-center px-4 h-11">
         <div className="flex items-center gap-1">
           {VIEWS.map(({ key, label, idx }) => (
             <button
@@ -100,15 +125,21 @@ export function StatusBar({
               onClick={() => onViewChange(key)}
               className={`btn-ghost flex items-center gap-2 ${view === key ? "active" : ""}`}
             >
-              <span className="text-[8px] opacity-50">{idx}</span>
+              <span className="text-[8px] text-[var(--color-ash)]">{idx}</span>
               {label}
             </button>
           ))}
+          {view === "swarm-detail" && (
+            <button className="btn-ghost flex items-center gap-2 active" disabled>
+              <span className="text-[8px] text-[var(--color-ash)]">◈</span>
+              SWARM
+            </button>
+          )}
         </div>
 
         <div className="flex-1" />
 
-        <div className="text-[9px] tracking-[0.16em] uppercase text-[var(--color-dim)]">
+        <div className="text-[9px] font-semibold tracking-[0.16em] uppercase text-[var(--color-steel)]">
           MUNICH OPS ▸ EU-CENTRAL ▸ NODE 38bV...rH6R
         </div>
       </div>

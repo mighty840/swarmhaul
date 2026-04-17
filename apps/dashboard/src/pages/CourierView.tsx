@@ -36,8 +36,9 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
       <div className="flex items-end justify-between border-b border-[var(--color-line)] pb-4">
         <div>
           <div className="label mb-2">▸ COURIER NETWORK</div>
-          <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light">
-            <span className="editorial text-[var(--color-amber)]">autonomous</span> agents
+          <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light text-[var(--color-bone)]">
+            <span className="display-serif text-[var(--color-amber)]">Autonomous</span>{" "}
+            Agents
           </h1>
         </div>
         <div className="text-right">
@@ -58,11 +59,11 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
         >
           {leaderboard.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="text-[var(--color-dim)] text-[11px] mb-2">
+              <div className="text-[var(--color-ash)] text-[11px] mb-2">
                 ░░ no agents registered ░░
               </div>
-              <div className="text-[10px] text-[var(--color-faint)] tracking-[0.14em] uppercase">
-                spawn the agent daemon to populate
+              <div className="text-[10px] text-[var(--color-steel)] tracking-[0.14em] uppercase font-semibold">
+                SPAWN THE AGENT DAEMON TO POPULATE
               </div>
             </div>
           ) : (
@@ -77,13 +78,13 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                   >
                     {/* Rank */}
                     <div className="w-10 text-center">
-                      <div className="text-[9px] text-[var(--color-dim)] mb-0.5">
+                      <div className="text-[9px] text-[var(--color-ash)] mb-0.5 font-semibold tracking-[0.14em]">
                         RANK
                       </div>
                       <div
-                        className="text-[18px] font-light tabular-nums"
+                        className="text-[20px] font-light tabular-nums"
                         style={{
-                          color: rank <= 3 ? color : "var(--color-ash)",
+                          color: rank <= 3 ? color : "var(--color-bone)",
                         }}
                       >
                         {String(rank).padStart(2, "0")}
@@ -98,24 +99,24 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                     {/* Pubkey + ID */}
                     <div className="flex-1 min-w-0">
                       <div
-                        className="text-[12px] font-semibold tracking-[0.04em]"
+                        className="text-[13px] font-bold tracking-[0.04em]"
                         style={{ color }}
                       >
                         {shortenPubkey(agent.agentPubkey)}
                       </div>
-                      <div className="text-[9px] text-[var(--color-dim)] mt-0.5 tracking-[0.12em] uppercase">
+                      <div className="text-[9px] text-[var(--color-steel)] mt-0.5 tracking-[0.14em] uppercase font-semibold">
                         AGENT ▸ AUTONOMOUS NODE
                       </div>
                     </div>
 
                     {/* Stats */}
                     <div className="hidden md:block text-right">
-                      <div className="text-[10px] text-[var(--color-dim)] tracking-[0.12em] mb-0.5">
+                      <div className="text-[10px] text-[var(--color-ash)] tracking-[0.14em] mb-0.5 font-semibold">
                         LEGS
                       </div>
-                      <div className="text-[13px] tabular-nums text-[var(--color-bone)]">
+                      <div className="text-[14px] tabular-nums text-[var(--color-bone)] font-semibold">
                         {agent.legsCompleted}
-                        <span className="text-[var(--color-dim)] text-[10px]">
+                        <span className="text-[var(--color-ash)] text-[11px] font-semibold">
                           /{agent.legsAccepted}
                         </span>
                       </div>
@@ -124,11 +125,11 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                     {/* Reliability bar */}
                     <div className="hidden md:flex flex-col items-end gap-1.5 min-w-[140px]">
                       <div className="flex items-center gap-2 w-full justify-end">
-                        <div className="text-[10px] text-[var(--color-dim)] tracking-[0.12em]">
+                        <div className="text-[10px] text-[var(--color-ash)] tracking-[0.14em] font-semibold">
                           RELIABILITY
                         </div>
                         <div
-                          className="text-[13px] font-bold tabular-nums w-10 text-right"
+                          className="text-[14px] font-bold tabular-nums w-10 text-right"
                           style={{ color }}
                         >
                           {agent.reliabilityScore}
@@ -160,9 +161,9 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
           className="col-span-12 lg:col-span-5"
         >
           <div className="p-4">
-            <p className="text-[11px] text-[var(--color-ash)] leading-relaxed mb-4">
+            <p className="text-[12px] text-[var(--color-steel)] leading-relaxed mb-4">
               Any AI agent can join the swarm via the{" "}
-              <span className="text-[var(--color-cyan)] editorial">
+              <span className="text-[var(--color-cyan)] font-semibold">
                 Model Context Protocol
               </span>
               . Eight tools expose the entire SwarmHaul protocol.
@@ -175,12 +176,14 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                   className="border border-[var(--color-line)] hover:border-[var(--color-cyan)] hover:bg-[var(--color-hover)] transition-colors p-2.5 group"
                 >
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[var(--color-cyan)] text-[9px]">▸</span>
-                    <code className="text-[11px] text-[var(--color-bone)] font-medium">
+                    <span className="text-[var(--color-cyan)] text-[10px] font-bold">
+                      ▸
+                    </span>
+                    <code className="text-[11px] text-[var(--color-bone)] font-semibold">
                       {tool.name}
                     </code>
                   </div>
-                  <div className="text-[10px] text-[var(--color-dim)] mt-0.5 ml-3.5">
+                  <div className="text-[10px] text-[var(--color-steel)] mt-0.5 ml-4">
                     {tool.desc}
                   </div>
                 </div>
@@ -188,7 +191,9 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
             </div>
 
             <div className="mt-4 p-3 bg-[var(--color-void)] border border-[var(--color-line)] font-mono text-[10px]">
-              <div className="text-[var(--color-dim)] mb-1">▸ Add to mcp.json</div>
+              <div className="text-[var(--color-ash)] mb-1 tracking-[0.14em] uppercase font-semibold">
+                ▸ ADD TO mcp.json
+              </div>
               <div className="text-[var(--color-cyan)]">
                 "swarmhaul":{" "}
                 <span className="text-[var(--color-bone)]">
