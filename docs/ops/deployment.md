@@ -81,6 +81,15 @@ orca webhooks add --repo mighty840/swarmhaul \
 orca deploy swarmhaul
 ```
 
+> **Important — this first `orca deploy swarmhaul` is mandatory before
+> webhooks work.** Orca's webhook handler calls
+> `reconciler::redeploy(<service>)` which errors with *"service not
+> found"* if the service has never been bootstrapped. Without the
+> first manual deploy, CI will build + push images, POST the webhook,
+> and get HTTP 500 back — Orca has nothing to redeploy yet. Once
+> services are in Orca's state, every subsequent push triggers fast
+> per-service redeploys via the webhook automatically.
+
 ## Agent config JSONs
 
 Each agent container looks for its config at `CONFIG_PATH` — the three
