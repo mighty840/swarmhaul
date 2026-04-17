@@ -52,7 +52,7 @@ async function main() {
             dropoffLat: leg.dropoffLocation.lat,
             dropoffLng: leg.dropoffLocation.lng,
             distanceKm: leg.distanceKm,
-            estimatedDurationMin: leg.estimatedDurationMin,
+            estimatedDurationMin: Math.round(leg.estimatedDurationMin),
             costSol,
             reasoning: decision.reasoning,
             expiresAt: new Date(
