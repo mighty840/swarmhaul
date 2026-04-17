@@ -1,0 +1,50 @@
+# Agent container — the autonomous courier daemon that polls the API,
+# reasons over bids via LiteLLM, and posts bids + confirmations.
+# One container per agent identity — each mounts its own
+# CONFIG_PATH and SWARMHAUL_AGENT_KEYPAIR_B64 secret.
+
+FROM oven/bun:1.2.12-slim AS builder
+WORKDIR /app
+
+COPY package.json bun.lock* ./
+COPY apps/agent/package.json apps/agent/
+COPY packages/types/package.json packages/types/
+
+RUN bun install --frozen-lockfile --production=false
+
+COPY apps/agent apps/agent
+COPY packages/types packages/types
+COPY tsconfig.json* ./
+
+FROM oven/bun:1.2.12-slim AS runtime
+WORKDIR /app
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app /app
+
+COPY <<'SHELL' /entrypoint.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Decode agent keypair from base64 secret into a readable file.
+if [[ -n "${SWARMHAUL_AGENT_KEYPAIR_B64:-}" ]]; then
+  mkdir -p /run/swarmhaul
+  echo "$SWARMHAUL_AGENT_KEYPAIR_B64" | base64 -d > /run/swarmhaul/agent.json
+  chmod 600 /run/swarmhaul/agent.json
+fi
+
+# If no CONFIG_PATH override, the deployer is expected to mount
+# /app/agent.config.json via a volume or bake it into the image's env.
+if [[ -z "${CONFIG_PATH:-}" ]]; then
+  export CONFIG_PATH=/app/agent.config.json
+fi
+
+cd /app/apps/agent
+exec bunx tsx src/agent.ts
+SHELL
+RUN chmod +x /entrypoint.sh
+
+CMD ["/entrypoint.sh"]
