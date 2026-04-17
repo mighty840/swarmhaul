@@ -4,7 +4,10 @@
 # CONFIG_PATH and SWARMHAUL_AGENT_KEYPAIR_B64 secret.
 
 FROM oven/bun:1.2.12-slim AS builder
+ARG COMMIT_SHA=dev
 WORKDIR /app
+
+RUN echo "cache-bust ${COMMIT_SHA}"
 
 COPY package.json bun.lock* ./
 COPY apps/api/package.json apps/api/
@@ -32,6 +35,9 @@ COPY --from=builder /app /app
 # Bake agent configs so containers can boot with a CONFIG_PATH pointing
 # at /app/config/agent-<name>.config.json (see docs/ops/orca-service.toml).
 COPY apps/agent/configs /app/config
+
+ARG COMMIT_SHA=dev
+ENV COMMIT_SHA=$COMMIT_SHA
 
 COPY <<'SHELL' /entrypoint.sh
 #!/usr/bin/env bash

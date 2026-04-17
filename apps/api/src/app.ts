@@ -45,7 +45,15 @@ export async function buildApp(opts?: { logger?: boolean }) {
   const requireAuth = process.env.REQUIRE_AUTH === "true";
   app.addHook("preHandler", authHook({ required: requireAuth }));
 
-  app.get("/health", async () => ({ status: "ok", service: "swarmhaul-api" }));
+  const commit = process.env.COMMIT_SHA ?? "dev";
+  const buildTime = process.env.BUILD_TIME ?? new Date().toISOString();
+  app.get("/health", async () => ({
+    status: "ok",
+    service: "swarmhaul-api",
+    commit,
+    commitShort: commit.slice(0, 7),
+    buildTime,
+  }));
 
   app.get("/ws", { websocket: true }, (socket) => {
     addClient(socket);

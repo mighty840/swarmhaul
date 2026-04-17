@@ -5,7 +5,14 @@
 #          SWARMHAUL_COORDINATOR_KEYPAIR_B64 (preferred in Orca).
 
 FROM oven/bun:1.2.12-slim AS builder
+ARG COMMIT_SHA=dev
 WORKDIR /app
+
+# Include commit in an early layer so every new commit invalidates
+# the install layer cache (previously saw buildx import a cached
+# install layer from an older Dockerfile that missed some workspace
+# package.json COPYs, producing an image with only 2 of 6 symlinks).
+RUN echo "cache-bust ${COMMIT_SHA}"
 
 COPY package.json bun.lock* ./
 COPY apps/api/package.json apps/api/
@@ -35,6 +42,10 @@ RUN apt-get update \
 
 COPY --from=builder /app /app
 
+ARG COMMIT_SHA=dev
+ARG BUILD_TIME
+ENV COMMIT_SHA=$COMMIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
 WORKDIR /app/apps/api
 ENV NODE_ENV=production
 ENV PORT=3001
