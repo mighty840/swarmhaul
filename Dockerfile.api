@@ -9,10 +9,13 @@ WORKDIR /app
 
 COPY package.json bun.lock* ./
 COPY apps/api/package.json apps/api/
+COPY apps/agent/package.json apps/agent/
+COPY apps/dashboard/package.json apps/dashboard/
 COPY packages/sdk/package.json packages/sdk/
+COPY packages/solana/package.json packages/solana/
 COPY packages/types/package.json packages/types/
 
-RUN bun install --frozen-lockfile --production=false
+RUN bun install --frozen-lockfile
 
 COPY apps/api apps/api
 COPY packages/sdk packages/sdk

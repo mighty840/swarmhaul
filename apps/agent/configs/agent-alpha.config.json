@@ -1,0 +1,29 @@
+{
+  "agentPubkey": "7FBqQRTgCgCrvavzxXRAnug8xiX9NmjaqJXc59KiQFyu",
+  "keypairPath": "/run/swarmhaul/agent.json",
+  "apiEndpoint": "http://swarmhaul-api:3001",
+  "vehicle": {
+    "carMake": "Fiat",
+    "carModel": "Panda",
+    "bootVolumeLitres": 200,
+    "fuelConsumptionLPer100km": 5.0,
+    "fuelCostEurPerLitre": 1.8,
+    "hourlyRateEur": 12,
+    "isAutonomous": false
+  },
+  "bidSettings": {
+    "maxDetourKm": 5.0,
+    "maxDetourMinutes": 20,
+    "minProfitMarginPct": 15,
+    "autoAccept": true
+  },
+  "itinerary": [
+    { "location": { "lat": 48.137, "lng": 11.575 }, "eta": "2026-04-18T06:00:00Z" },
+    { "location": { "lat": 48.155, "lng": 11.6 },   "eta": "2026-04-18T07:00:00Z" }
+  ],
+  "llm": {
+    "enabled": true,
+    "endpoint": "https://llm-dev.meghsakha.com",
+    "model": "gpt-oss-120b"
+  }
+}

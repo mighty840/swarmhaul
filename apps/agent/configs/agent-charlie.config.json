@@ -1,0 +1,29 @@
+{
+  "agentPubkey": "8ba9B9MouLb9QbAzvxcu3ob91zPy5eGA8y21QrraWHHw",
+  "keypairPath": "/run/swarmhaul/agent.json",
+  "apiEndpoint": "http://swarmhaul-api:3001",
+  "vehicle": {
+    "carMake": "Mercedes",
+    "carModel": "Sprinter",
+    "bootVolumeLitres": 1200,
+    "fuelConsumptionLPer100km": 9.0,
+    "fuelCostEurPerLitre": 1.8,
+    "hourlyRateEur": 25,
+    "isAutonomous": true
+  },
+  "bidSettings": {
+    "maxDetourKm": 8.0,
+    "maxDetourMinutes": 30,
+    "minProfitMarginPct": 5,
+    "autoAccept": true
+  },
+  "itinerary": [
+    { "location": { "lat": 48.165, "lng": 11.58 },  "eta": "2026-04-18T06:00:00Z" },
+    { "location": { "lat": 48.115, "lng": 11.595 }, "eta": "2026-04-18T07:00:00Z" }
+  ],
+  "llm": {
+    "enabled": true,
+    "endpoint": "https://llm-dev.meghsakha.com",
+    "model": "gpt-oss-120b"
+  }
+}
