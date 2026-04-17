@@ -24,7 +24,7 @@ RUN bun install --frozen-lockfile
 
 COPY apps/dashboard apps/dashboard
 COPY packages/types packages/types
-COPY tsconfig.json* ./
+COPY tsconfig.base.json ./
 
 WORKDIR /app/apps/dashboard
 RUN bun run build

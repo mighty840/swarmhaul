@@ -20,7 +20,7 @@ RUN bun install --frozen-lockfile
 COPY apps/api apps/api
 COPY packages/sdk packages/sdk
 COPY packages/types packages/types
-COPY tsconfig.json* ./
+COPY tsconfig.base.json ./
 
 WORKDIR /app/apps/api
 RUN bunx prisma generate --schema=src/db/schema.prisma
