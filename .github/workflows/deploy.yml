@@ -60,8 +60,7 @@ jobs:
           tags: |
             ${{ secrets.ORCA_REGISTRY || 'registry.meghsakha.com' }}/${{ matrix.image }}:${{ github.sha }}
             ${{ secrets.ORCA_REGISTRY || 'registry.meghsakha.com' }}/${{ matrix.image }}:latest
-          cache-from: type=registry,ref=${{ secrets.ORCA_REGISTRY || 'registry.meghsakha.com' }}/${{ matrix.image }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.ORCA_REGISTRY || 'registry.meghsakha.com' }}/${{ matrix.image }}:buildcache,mode=max
+          no-cache: true
 
   trigger-orca:
     name: Notify Orca
