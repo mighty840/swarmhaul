@@ -51,7 +51,7 @@ if [[ -z "${CONFIG_PATH:-}" ]]; then
 fi
 
 cd /app/apps/agent
-exec bunx tsx src/agent.ts
+exec bun run src/agent.ts
 SHELL
 RUN chmod +x /entrypoint.sh
 
