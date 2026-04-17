@@ -1,0 +1,63 @@
+# API container — Fastify + Prisma + Solana SDK.
+# Build: docker build -f Dockerfile.api -t swarmhaul-api .
+# Run with: DATABASE_URL, SOLANA_RPC_URL, SOLANA_CLUSTER, LITELLM_API_KEY,
+#          and either PROTOCOL_AUTHORITY_KEYPAIR_PATH or
+#          SWARMHAUL_COORDINATOR_KEYPAIR_B64 (preferred in Orca).
+
+FROM oven/bun:1.2.12-slim AS builder
+WORKDIR /app
+
+COPY package.json bun.lock* ./
+COPY apps/api/package.json apps/api/
+COPY packages/sdk/package.json packages/sdk/
+COPY packages/types/package.json packages/types/
+
+RUN bun install --frozen-lockfile --production=false
+
+COPY apps/api apps/api
+COPY packages/sdk packages/sdk
+COPY packages/types packages/types
+COPY tsconfig.json* ./
+
+WORKDIR /app/apps/api
+RUN bunx prisma generate --schema=src/db/schema.prisma
+
+FROM oven/bun:1.2.12-slim AS runtime
+WORKDIR /app
+
+# Install openssl (required by Prisma) and a minimal base64 coreutils.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app /app
+
+WORKDIR /app/apps/api
+ENV NODE_ENV=production
+ENV PORT=3001
+EXPOSE 3001
+
+# Entrypoint: decode a base64-encoded coordinator keypair (if supplied
+# via Orca secret) to a file the SDK can read, run Prisma migrations,
+# then boot the server.
+COPY <<'SHELL' /entrypoint.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -n "${SWARMHAUL_COORDINATOR_KEYPAIR_B64:-}" ]]; then
+  mkdir -p /run/swarmhaul
+  echo "$SWARMHAUL_COORDINATOR_KEYPAIR_B64" | base64 -d > /run/swarmhaul/coordinator.json
+  chmod 600 /run/swarmhaul/coordinator.json
+  export PROTOCOL_AUTHORITY_KEYPAIR_PATH=/run/swarmhaul/coordinator.json
+fi
+
+cd /app/apps/api
+bunx prisma migrate deploy --schema=src/db/schema.prisma
+exec bunx tsx src/index.ts
+SHELL
+RUN chmod +x /entrypoint.sh
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3001/health || exit 1
+
+CMD ["/entrypoint.sh"]

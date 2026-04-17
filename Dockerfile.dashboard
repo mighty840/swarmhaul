@@ -1,0 +1,48 @@
+# Dashboard container — Vite-built SPA served by Caddy.
+# Build-time envs passed via --build-arg (Vite inlines them at build):
+#   VITE_API_URL, VITE_WS_URL, VITE_SOLANA_RPC
+
+FROM oven/bun:1.2.12-slim AS builder
+WORKDIR /app
+
+ARG VITE_API_URL=https://api.swarmhaul.defited.com
+ARG VITE_WS_URL=wss://api.swarmhaul.defited.com
+ARG VITE_SOLANA_RPC=https://api.devnet.solana.com
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+ENV VITE_SOLANA_RPC=$VITE_SOLANA_RPC
+
+COPY package.json bun.lock* ./
+COPY apps/dashboard/package.json apps/dashboard/
+COPY packages/types/package.json packages/types/
+
+RUN bun install --frozen-lockfile --production=false
+
+COPY apps/dashboard apps/dashboard
+COPY packages/types packages/types
+COPY tsconfig.json* ./
+
+WORKDIR /app/apps/dashboard
+RUN bun run build
+
+FROM caddy:2.8-alpine AS runtime
+WORKDIR /srv
+COPY --from=builder /app/apps/dashboard/dist /srv
+
+COPY <<'CADDY' /etc/caddy/Caddyfile
+:80 {
+  root * /srv
+  encode zstd gzip
+  try_files {path} /index.html
+  file_server
+  header {
+    Cache-Control "no-cache"
+    X-Frame-Options "DENY"
+    X-Content-Type-Options "nosniff"
+  }
+  header /assets/* Cache-Control "public, max-age=31536000, immutable"
+}
+CADDY
+
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1

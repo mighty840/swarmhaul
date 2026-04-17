@@ -1,0 +1,124 @@
+# SwarmHaul — Orca deployment manifest
+#
+# Copy this file into your orca-infra repo as
+#   services/swarmhaul/service.toml
+# and run `orca deploy swarmhaul` after setting the secrets listed in
+# docs/ops/deployment.md.
+#
+# 6 services:
+#   swarmhaul-db               — Postgres 17 with persistent volume
+#   swarmhaul-api              — Fastify + Prisma
+#   swarmhaul-dashboard        — Vite SPA behind Caddy
+#   swarmhaul-agent-alpha      — low-rep courier (pre-seeded)
+#   swarmhaul-agent-bravo      — mid-rep courier
+#   swarmhaul-agent-charlie    — high-rep courier
+#
+# All three agents use the same image (swarmhaul-agent:latest) with
+# distinct keypair secrets and CONFIG_PATH env.
+
+[[service]]
+name = "swarmhaul-db"
+image = "postgres:17-alpine"
+port = 5432
+network = "swarmhaul"
+aliases = ["db"]
+[service.placement]
+node = "vmd169252"
+[service.env]
+POSTGRES_DB = "swarmhaul"
+POSTGRES_USER = "swarmhaul"
+POSTGRES_PASSWORD = "${secrets.SWARMHAUL_DB_PASSWORD}"
+[service.volume]
+path = "/var/lib/postgresql/data"
+[service.resources]
+memory = "512Mi"
+cpu = 0.5
+
+[[service]]
+name = "swarmhaul-api"
+image = "registry.meghsakha.com/swarmhaul-api:latest"
+port = 3001
+domain = "api.swarmhaul.defited.com"
+network = "swarmhaul"
+depends_on = ["swarmhaul-db"]
+[service.placement]
+node = "vmd169252"
+[service.env]
+NODE_ENV = "production"
+DATABASE_URL = "postgresql://swarmhaul:${secrets.SWARMHAUL_DB_PASSWORD}@db:5432/swarmhaul"
+SOLANA_RPC_URL = "https://api.devnet.solana.com"
+SOLANA_CLUSTER = "devnet"
+LITELLM_API_KEY = "${secrets.LITELLM_API_KEY}"
+SWARMHAUL_COORDINATOR_KEYPAIR_B64 = "${secrets.SWARMHAUL_COORDINATOR_KEYPAIR_B64}"
+[service.resources]
+memory = "512Mi"
+cpu = 1.0
+[service.liveness]
+path = "/health"
+interval_secs = 30
+
+[[service]]
+name = "swarmhaul-dashboard"
+image = "registry.meghsakha.com/swarmhaul-dashboard:latest"
+port = 80
+domain = "dashboard.swarmhaul.defited.com"
+network = "swarmhaul"
+depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
+[service.resources]
+memory = "128Mi"
+cpu = 0.25
+
+# ─── Agents ──────────────────────────────────────────────────────────
+# Each agent is its own container. To seed different reputations, the
+# API's scripts/seed-e2e-reps.ts can be run once against the devnet DB
+# after first boot (adjust pubkeys to match each agent's keypair).
+
+[[service]]
+name = "swarmhaul-agent-alpha"
+image = "registry.meghsakha.com/swarmhaul-agent:latest"
+network = "swarmhaul"
+depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
+[service.env]
+CONFIG_PATH = "/app/config/agent-alpha.config.json"
+SOLANA_RPC_URL = "https://api.devnet.solana.com"
+LITELLM_API_KEY = "${secrets.LITELLM_API_KEY}"
+SWARMHAUL_AGENT_KEYPAIR_B64 = "${secrets.SWARMHAUL_AGENT_ALPHA_KEYPAIR_B64}"
+[service.resources]
+memory = "256Mi"
+cpu = 0.25
+
+[[service]]
+name = "swarmhaul-agent-bravo"
+image = "registry.meghsakha.com/swarmhaul-agent:latest"
+network = "swarmhaul"
+depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
+[service.env]
+CONFIG_PATH = "/app/config/agent-bravo.config.json"
+SOLANA_RPC_URL = "https://api.devnet.solana.com"
+LITELLM_API_KEY = "${secrets.LITELLM_API_KEY}"
+SWARMHAUL_AGENT_KEYPAIR_B64 = "${secrets.SWARMHAUL_AGENT_BRAVO_KEYPAIR_B64}"
+[service.resources]
+memory = "256Mi"
+cpu = 0.25
+
+[[service]]
+name = "swarmhaul-agent-charlie"
+image = "registry.meghsakha.com/swarmhaul-agent:latest"
+network = "swarmhaul"
+depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
+[service.env]
+CONFIG_PATH = "/app/config/agent-charlie.config.json"
+SOLANA_RPC_URL = "https://api.devnet.solana.com"
+LITELLM_API_KEY = "${secrets.LITELLM_API_KEY}"
+SWARMHAUL_AGENT_KEYPAIR_B64 = "${secrets.SWARMHAUL_AGENT_CHARLIE_KEYPAIR_B64}"
+[service.resources]
+memory = "256Mi"
+cpu = 0.25
