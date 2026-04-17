@@ -63,10 +63,25 @@ export function StatusBar({
             </span>
           </div>
 
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 border border-[var(--color-line-hot)]">
+          <div className="hidden md:flex items-center gap-2 px-2 py-0.5 border border-[var(--color-line-hot)]">
             <span className="text-[9px] tracking-[0.16em] text-[var(--color-ash)]">
               v0.1.0
             </span>
+            {import.meta.env.VITE_COMMIT_SHA &&
+              import.meta.env.VITE_COMMIT_SHA !== "dev" && (
+                <>
+                  <span className="text-[var(--color-faint)]">│</span>
+                  <a
+                    href={`https://github.com/mighty840/swarmhaul/commit/${import.meta.env.VITE_COMMIT_SHA}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[9px] tracking-[0.12em] text-[var(--color-steel)] hover:text-[var(--color-phosphor)] font-mono"
+                    title={import.meta.env.VITE_COMMIT_SHA}
+                  >
+                    {String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7)}
+                  </a>
+                </>
+              )}
           </div>
 
           <div className="hidden md:flex items-center gap-1.5">

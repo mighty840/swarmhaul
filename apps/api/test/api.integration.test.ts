@@ -61,10 +61,15 @@ afterAll(async () => {
 // ─── Health ────────────────────────────────────────────────────────
 
 describe("GET /health", () => {
-  it("returns 200 with status ok", async () => {
+  it("returns 200 with status ok + build metadata", async () => {
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: "ok", service: "swarmhaul-api" });
+    const body = res.json();
+    expect(body.status).toBe("ok");
+    expect(body.service).toBe("swarmhaul-api");
+    expect(typeof body.commit).toBe("string");
+    expect(typeof body.commitShort).toBe("string");
+    expect(typeof body.buildTime).toBe("string");
   });
 });
 

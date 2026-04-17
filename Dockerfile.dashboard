@@ -3,14 +3,19 @@
 #   VITE_API_URL, VITE_WS_URL, VITE_SOLANA_RPC
 
 FROM oven/bun:1.2.12-slim AS builder
+ARG COMMIT_SHA=dev
 WORKDIR /app
+
+RUN echo "cache-bust ${COMMIT_SHA}"
 
 ARG VITE_API_URL=https://api.swarmhaul.defited.com
 ARG VITE_WS_URL=wss://api.swarmhaul.defited.com
 ARG VITE_SOLANA_RPC=https://api.devnet.solana.com
+ARG VITE_COMMIT_SHA=dev
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_WS_URL=$VITE_WS_URL
 ENV VITE_SOLANA_RPC=$VITE_SOLANA_RPC
+ENV VITE_COMMIT_SHA=$VITE_COMMIT_SHA
 
 COPY package.json bun.lock* ./
 COPY apps/api/package.json apps/api/

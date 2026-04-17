@@ -24,16 +24,16 @@ jobs:
         include:
           - image: swarmhaul-api
             dockerfile: Dockerfile.api
-            build_args: ""
+            extra_args: ""
           - image: swarmhaul-dashboard
             dockerfile: Dockerfile.dashboard
-            build_args: |
+            extra_args: |
               VITE_API_URL=https://api.swarmhaul.defited.com
               VITE_WS_URL=wss://api.swarmhaul.defited.com
               VITE_SOLANA_RPC=https://api.devnet.solana.com
           - image: swarmhaul-agent
             dockerfile: Dockerfile.agent
-            build_args: ""
+            extra_args: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +52,11 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          build-args: ${{ matrix.build_args }}
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp }}
+            VITE_COMMIT_SHA=${{ github.sha }}
+            ${{ matrix.extra_args }}
           tags: |
             ${{ secrets.ORCA_REGISTRY || 'registry.meghsakha.com' }}/${{ matrix.image }}:${{ github.sha }}
             ${{ secrets.ORCA_REGISTRY || 'registry.meghsakha.com' }}/${{ matrix.image }}:latest
