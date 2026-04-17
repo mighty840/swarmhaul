@@ -69,8 +69,20 @@ export function SwarmMap({ packages }: { packages: Package[] }) {
 
     for (const pkg of packages) {
       const color = STATUS_COLORS[pkg.status] ?? "#6b7280";
+      const originLat = (pkg as any).originLat ?? pkg.origin?.lat;
+      const originLng = (pkg as any).originLng ?? pkg.origin?.lng;
+      const destLat = (pkg as any).destLat ?? pkg.destination?.lat;
+      const destLng = (pkg as any).destLng ?? pkg.destination?.lng;
+      if (
+        !Number.isFinite(originLat) ||
+        !Number.isFinite(originLng) ||
+        !Number.isFinite(destLat) ||
+        !Number.isFinite(destLng)
+      ) {
+        continue;
+      }
 
-      const originMarker = L.circleMarker([pkg.origin.lat, pkg.origin.lng], {
+      const originMarker = L.circleMarker([originLat, originLng], {
         radius: 7,
         color,
         fillColor: color,
@@ -79,22 +91,19 @@ export function SwarmMap({ packages }: { packages: Package[] }) {
       }).addTo(map);
       (originMarker as any)._swarmhaul = true;
 
-      const destMarker = L.circleMarker(
-        [pkg.destination.lat, pkg.destination.lng],
-        {
-          radius: 5,
-          color,
-          fillColor: "transparent",
-          weight: 2,
-          dashArray: "3",
-        },
-      ).addTo(map);
+      const destMarker = L.circleMarker([destLat, destLng], {
+        radius: 5,
+        color,
+        fillColor: "transparent",
+        weight: 2,
+        dashArray: "3",
+      }).addTo(map);
       (destMarker as any)._swarmhaul = true;
 
       const line = L.polyline(
         [
-          [pkg.origin.lat, pkg.origin.lng],
-          [pkg.destination.lat, pkg.destination.lng],
+          [originLat, originLng],
+          [destLat, destLng],
         ],
         {
           color,

@@ -37,13 +37,17 @@ Profit margin if I bid: ${(((pkg.maxBudgetSol - costSol) / costSol) * 100).toFix
 Should I bid? Consider: profitability, detour impact on my schedule, package fit for my vehicle, and reputation building.
 Respond in JSON: {"shouldBid": true/false, "reasoning": "one sentence explanation"}`;
 
+    const apiKey = process.env.LITELLM_API_KEY ?? process.env.LLM_API_KEY;
     const res = await fetch(`${config.llm.endpoint}/v1/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
       body: JSON.stringify({
         model: config.llm.model,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 150,
+        max_tokens: 4000,
         temperature: 0.3,
       }),
     });
