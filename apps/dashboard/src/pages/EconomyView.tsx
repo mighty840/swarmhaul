@@ -77,13 +77,13 @@ function MegaStat({
       <div className={`absolute bottom-0 right-0 w-2 h-2 border-b border-r ${color.replace("text-", "border-")}`} />
 
       <div className="flex items-start justify-between mb-3">
-        <span className="label">{label}</span>
-        {delta && <span className={`text-[9px] ${color}`}>{delta}</span>}
+        <span className="label-strong">{label}</span>
+        {delta && <span className={`text-[9px] font-semibold tracking-[0.14em] ${color}`}>{delta}</span>}
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="stat-num">{value}</span>
         {unit && (
-          <span className="text-[10px] text-[var(--color-dim)] tracking-[0.16em] uppercase">
+          <span className="text-[10px] text-[var(--color-ash)] tracking-[0.16em] uppercase font-semibold">
             {unit}
           </span>
         )}
@@ -126,7 +126,7 @@ function EventLine({ evt }: { evt: WSEvent }) {
   return (
     <div className="flex items-start gap-2 py-1 px-3 hover:bg-[var(--color-hover)] group">
       <span
-        className="text-[9px] tracking-[0.1em] mt-0.5 font-semibold"
+        className="text-[9px] tracking-[0.1em] mt-0.5 font-bold"
         style={{ color }}
       >
         ▸
@@ -134,13 +134,15 @@ function EventLine({ evt }: { evt: WSEvent }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span
-            className="text-[10px] tracking-[0.14em] font-semibold"
+            className="text-[10px] tracking-[0.14em] font-bold"
             style={{ color }}
           >
             {evt.type}
           </span>
         </div>
-        <div className="text-[10px] text-[var(--color-ash)] truncate">{detail}</div>
+        <div className="text-[11px] text-[var(--color-steel)] truncate">
+          {detail}
+        </div>
       </div>
     </div>
   );
@@ -159,21 +161,30 @@ function agentColorFor(pubkey: string): string {
   return AGENT_COLORS[h % AGENT_COLORS.length];
 }
 
+const STATUS_COLOR: Record<string, string> = {
+  delivered: "var(--color-phosphor)",
+  in_transit: "var(--color-amber)",
+  swarm_forming: "var(--color-magenta)",
+  listed: "var(--color-cyan)",
+};
+
 export function EconomyView({
   stats,
   activity,
   leaderboard,
   wsEvents,
+  onOpenSwarm,
 }: {
   stats: EconomyStats | null;
   activity: Activity | null;
   leaderboard: AgentReputation[];
   wsEvents: WSEvent[];
+  onOpenSwarm?: (packageId: string) => void;
 }) {
   if (!stats) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="text-[var(--color-phosphor)] text-sm tracking-[0.18em] uppercase">
+        <div className="text-[var(--color-phosphor)] text-sm tracking-[0.18em] uppercase font-bold">
           <span className="cursor">INITIALIZING TELEMETRY</span>
         </div>
       </div>
@@ -187,7 +198,8 @@ export function EconomyView({
         <div>
           <div className="label mb-2">▸ AGENT ECONOMY OBSERVATORY</div>
           <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light text-[var(--color-bone)]">
-            <span className="editorial text-[var(--color-phosphor)]">live</span> telemetry
+            <span className="display-serif text-[var(--color-phosphor)]">Live</span>{" "}
+            Telemetry
             <span className="cursor"></span>
           </h1>
         </div>
@@ -240,7 +252,7 @@ export function EconomyView({
         >
           <div className="p-3 max-h-[520px] overflow-y-auto font-mono">
             {!activity?.recentBids.length && (
-              <div className="text-[var(--color-dim)] text-[11px] p-4 text-center">
+              <div className="text-[var(--color-ash)] text-[11px] p-4 text-center">
                 ░░ no agent activity ░░
               </div>
             )}
@@ -252,27 +264,33 @@ export function EconomyView({
                   className="border-l-2 pl-3 py-2 mb-2 hover:bg-[var(--color-hover)]"
                   style={{ borderColor: color }}
                 >
-                  <div className="flex items-baseline gap-2 mb-1">
+                  <div className="flex items-baseline gap-2 mb-1 flex-wrap">
                     <span
-                      className="text-[10px] font-semibold tracking-[0.08em]"
+                      className="text-[11px] font-bold tracking-[0.04em]"
                       style={{ color }}
                     >
                       {shortenPubkey(bid.agentPubkey)}
                     </span>
-                    <span className="text-[var(--color-dim)] text-[9px]">
-                      {timeAgo(bid.createdAt)} ago
+                    <span className="text-[var(--color-ash)] text-[9px] font-semibold tracking-[0.12em] uppercase">
+                      {timeAgo(bid.createdAt)} AGO
                     </span>
-                    <span className="text-[var(--color-dim)] text-[9px]">▸</span>
-                    <span className="text-[var(--color-dim)] text-[9px]">
+                    <span className="text-[var(--color-ash)] text-[9px]">▸</span>
+                    <button
+                      onClick={() => onOpenSwarm?.(bid.packageId)}
+                      className="text-[var(--color-steel)] text-[10px] hover:text-[var(--color-cyan)] transition-colors"
+                    >
                       pkg {shortenPubkey(bid.packageId)}
-                    </span>
-                    <span className="ml-auto text-[11px] text-[var(--color-bone)] font-medium tabular-nums">
-                      {bid.costSol} <span className="text-[var(--color-dim)] text-[8px]">SOL</span>
+                    </button>
+                    <span className="ml-auto text-[12px] text-[var(--color-bone)] font-bold tabular-nums">
+                      {bid.costSol}{" "}
+                      <span className="text-[var(--color-ash)] text-[9px] font-semibold">
+                        SOL
+                      </span>
                     </span>
                   </div>
                   {bid.reasoning && (
-                    <div className="text-[11px] text-[var(--color-ash)] leading-relaxed pl-0">
-                      <span className="text-[var(--color-dim)]">$ </span>
+                    <div className="text-[11px] text-[var(--color-steel)] leading-relaxed pl-0">
+                      <span className="text-[var(--color-ash)]">$ </span>
                       {bid.reasoning}
                     </div>
                   )}
@@ -295,7 +313,7 @@ export function EconomyView({
         >
           <div className="max-h-[260px] overflow-y-auto py-1">
             {wsEvents.length === 0 && (
-              <div className="text-[var(--color-dim)] text-[11px] p-4 text-center">
+              <div className="text-[var(--color-ash)] text-[11px] p-4 text-center">
                 ░░ awaiting events ░░
               </div>
             )}
@@ -314,7 +332,7 @@ export function EconomyView({
         >
           <div className="max-h-[252px] overflow-y-auto">
             {leaderboard.length === 0 && (
-              <div className="text-[var(--color-dim)] text-[11px] p-4 text-center">
+              <div className="text-[var(--color-ash)] text-[11px] p-4 text-center">
                 ░░ no ranked agents ░░
               </div>
             )}
@@ -326,7 +344,7 @@ export function EconomyView({
                   key={agent.agentPubkey}
                   className="flex items-center gap-3 px-4 py-2 border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0"
                 >
-                  <span className="text-[10px] text-[var(--color-dim)] tabular-nums">
+                  <span className="text-[11px] text-[var(--color-steel)] tabular-nums font-semibold">
                     #{rankStr}
                   </span>
                   <div
@@ -334,12 +352,12 @@ export function EconomyView({
                     style={{ backgroundColor: color }}
                   />
                   <span
-                    className="text-[11px] font-semibold flex-1"
+                    className="text-[11px] font-bold flex-1"
                     style={{ color }}
                   >
                     {shortenPubkey(agent.agentPubkey)}
                   </span>
-                  <span className="text-[10px] text-[var(--color-ash)] tabular-nums">
+                  <span className="text-[10px] text-[var(--color-steel)] tabular-nums font-semibold">
                     {agent.legsCompleted}/{agent.legsAccepted} LEGS
                   </span>
                   <div className="w-16 h-1 bg-[var(--color-line)] relative">
@@ -352,7 +370,7 @@ export function EconomyView({
                     />
                   </div>
                   <span
-                    className="text-[11px] font-bold tabular-nums w-10 text-right"
+                    className="text-[12px] font-bold tabular-nums w-10 text-right"
                     style={{ color }}
                   >
                     {agent.reliabilityScore}
@@ -385,7 +403,7 @@ export function EconomyView({
       {/* Recent packages table */}
       <Panel
         title="DISPATCH LEDGER ▸ RECENT PACKAGES"
-        meta={`${activity?.recentPackages.length ?? 0} ROWS`}
+        meta={`${activity?.recentPackages.length ?? 0} ROWS · CLICK ROW TO INSPECT SWARM`}
         accent="amber"
       >
         <div className="overflow-x-auto">
@@ -401,29 +419,30 @@ export function EconomyView({
             </thead>
             <tbody>
               {activity?.recentPackages.map((pkg) => {
-                const statusColor =
-                  pkg.status === "delivered"
-                    ? "var(--color-phosphor)"
-                    : pkg.status === "in_transit"
-                      ? "var(--color-amber)"
-                      : pkg.status === "swarm_forming"
-                        ? "var(--color-magenta)"
-                        : pkg.status === "listed"
-                          ? "var(--color-cyan)"
-                          : "var(--color-dim)";
+                const statusColor = STATUS_COLOR[pkg.status] ?? "var(--color-ash)";
+                const hasSwarm =
+                  pkg.status === "swarm_forming" ||
+                  pkg.status === "in_transit" ||
+                  pkg.status === "delivered";
                 return (
                   <tr
                     key={pkg.id}
-                    className="border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0"
+                    onClick={() => hasSwarm && onOpenSwarm?.(pkg.id)}
+                    className={`border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 ${
+                      hasSwarm ? "cursor-pointer" : "cursor-default"
+                    }`}
                   >
-                    <td className="py-2.5 px-4 font-mono text-[var(--color-dim)]">
+                    <td className="py-2.5 px-4 font-mono text-[var(--color-steel)] tabular-nums">
                       {pkg.id.slice(0, 8)}
                     </td>
                     <td className="py-2.5 px-2 text-[var(--color-bone)]">
                       {pkg.description}
                     </td>
-                    <td className="py-2.5 px-2 text-right text-[var(--color-bone)] tabular-nums">
-                      {pkg.maxBudgetSol} <span className="text-[var(--color-dim)] text-[9px]">SOL</span>
+                    <td className="py-2.5 px-2 text-right text-[var(--color-bone)] tabular-nums font-semibold">
+                      {pkg.maxBudgetSol}{" "}
+                      <span className="text-[var(--color-ash)] text-[9px] font-semibold">
+                        SOL
+                      </span>
                     </td>
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1.5">
@@ -432,14 +451,19 @@ export function EconomyView({
                           style={{ backgroundColor: statusColor }}
                         />
                         <span
-                          className="text-[10px] uppercase tracking-[0.12em]"
+                          className="text-[10px] uppercase tracking-[0.12em] font-bold"
                           style={{ color: statusColor }}
                         >
                           {pkg.status.replace("_", " ")}
                         </span>
+                        {hasSwarm && (
+                          <span className="ml-auto text-[var(--color-ash)] text-[9px]">
+                            ▸
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="py-2.5 px-4 text-right text-[var(--color-dim)] tabular-nums">
+                    <td className="py-2.5 px-4 text-right text-[var(--color-steel)] tabular-nums">
                       {timeAgo(pkg.listedAt)} ago
                     </td>
                   </tr>

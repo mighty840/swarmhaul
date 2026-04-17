@@ -2,21 +2,23 @@
 
 @theme {
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-serif: "Instrument Serif", ui-serif, serif;
+  --font-display: "Instrument Serif", ui-serif, serif;
 
   /* Void canvas */
   --color-void: #06060a;
   --color-graphite: #0c0c12;
-  --color-elevated: #11111a;
-  --color-hover: #181822;
-  --color-line: #1f1f2c;
-  --color-line-hot: #2c2c3c;
+  --color-elevated: #15151f;
+  --color-hover: #1e1e2a;
+  --color-line: #24243a;
+  --color-line-hot: #3a3a52;
 
-  /* Text */
-  --color-bone: #f4f4f1;
-  --color-ash: #8a8a98;
-  --color-dim: #4a4a58;
-  --color-faint: #2a2a36;
+  /* Text — reorganized by contrast tier.
+     Each token's role is encoded in its name so mis-use is harder. */
+  --color-bone: #f4f4f1;       /* primary data. 21:1 on void */
+  --color-steel: #c8c8d0;      /* secondary data. 12:1 on void */
+  --color-ash: #9898a5;        /* tertiary labels. 7.5:1 on void */
+  --color-dim: #6a6a7a;        /* chrome hints only. 4.5:1 on void */
+  --color-faint: #3a3a48;      /* non-text chrome. never for text */
 
   /* Accents */
   --color-phosphor: #00ff9c;
@@ -28,6 +30,7 @@
   --color-cyan: #00d4ff;
   --color-cyan-dim: #00d4ff33;
   --color-blood: #ff3344;
+  --color-blood-dim: #ff334433;
 }
 
 * {
@@ -102,43 +105,25 @@ body::before {
   50%, 100% { opacity: 0; }
 }
 @keyframes pulse-phosphor {
-  0%, 100% {
-    box-shadow: 0 0 0 0 var(--color-phosphor-dim);
-  }
-  50% {
-    box-shadow: 0 0 0 4px transparent;
-  }
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-phosphor-dim); }
+  50% { box-shadow: 0 0 0 4px transparent; }
 }
 @keyframes pulse-magenta {
-  0%, 100% {
-    box-shadow: 0 0 0 0 var(--color-magenta-dim);
-  }
-  50% {
-    box-shadow: 0 0 0 4px transparent;
-  }
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-magenta-dim); }
+  50% { box-shadow: 0 0 0 4px transparent; }
 }
 @keyframes scroll-x {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
 @keyframes glitch-in {
-  0% {
-    opacity: 0;
-    transform: translateY(4px);
-    filter: blur(2px);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0% { opacity: 0; transform: translateY(4px); filter: blur(2px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0); }
 }
-@keyframes count-up {
-  from { opacity: 0.4; }
-  to { opacity: 1; }
+@keyframes slide-down {
+  0% { opacity: 0; transform: translateY(-100%); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 .cursor::after {
@@ -149,35 +134,35 @@ body::before {
   animation: blink 1.1s steps(1) infinite;
 }
 
-.dot-live {
-  width: 6px;
-  height: 6px;
+.dot-live,
+.dot-magenta,
+.dot-amber,
+.dot-cyan,
+.dot-dead {
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
+  display: inline-block;
+}
+.dot-live {
   background: var(--color-phosphor);
   box-shadow: 0 0 8px var(--color-phosphor);
   animation: pulse-phosphor 2s ease-in-out infinite;
 }
 .dot-magenta {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
   background: var(--color-magenta);
   box-shadow: 0 0 8px var(--color-magenta);
   animation: pulse-magenta 2s ease-in-out infinite;
 }
 .dot-amber {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
   background: var(--color-amber);
   box-shadow: 0 0 8px var(--color-amber);
 }
-.dot-dead {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-dim);
+.dot-cyan {
+  background: var(--color-cyan);
+  box-shadow: 0 0 8px var(--color-cyan);
 }
+.dot-dead { background: var(--color-dim); }
 
 .panel {
   background: var(--color-graphite);
@@ -194,7 +179,7 @@ body::before {
 }
 .panel-title {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-bone);
@@ -203,21 +188,52 @@ body::before {
   font-size: 9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--color-dim);
+  color: var(--color-steel);
 }
 
+/* Label tiers — use the one that matches the data's importance.
+   AA-rated on void background for every tier. */
 .label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ash);
+}
+.label-strong {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-bone);
+}
+.label-muted {
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-dim);
 }
-.label-dim {
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-faint);
+
+/* Data tiers — use these instead of ad-hoc text-[var(--color-*)]. */
+.data-primary {
+  color: var(--color-bone);
+  font-variant-numeric: tabular-nums;
+}
+.data-secondary {
+  color: var(--color-steel);
+  font-variant-numeric: tabular-nums;
+}
+.data-tertiary {
+  color: var(--color-ash);
+  font-variant-numeric: tabular-nums;
+}
+
+.pubkey {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-bone);
 }
 
 .stat-num {
@@ -239,9 +255,11 @@ body::before {
   font-variant-numeric: tabular-nums;
 }
 
-.editorial {
-  font-family: var(--font-serif);
-  font-style: italic;
+/* Display serif for hero flourishes — upright, never italic.
+   Use sparingly (≤1 per page). Accent color lives on the utility class. */
+.display-serif {
+  font-family: var(--font-display);
+  font-style: normal;
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -249,7 +267,7 @@ body::before {
 .btn-primary {
   background: var(--color-phosphor);
   color: var(--color-void);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -266,13 +284,14 @@ body::before {
 .btn-primary:disabled {
   background: var(--color-faint);
   border-color: var(--color-faint);
-  color: var(--color-dim);
+  color: var(--color-ash);
   cursor: not-allowed;
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--color-ash);
+  color: var(--color-steel);
+  font-weight: 600;
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -284,11 +303,29 @@ body::before {
 .btn-ghost:hover {
   color: var(--color-bone);
   border-color: var(--color-line-hot);
+  background: var(--color-hover);
 }
 .btn-ghost.active {
   color: var(--color-phosphor);
   border-color: var(--color-phosphor);
   background: var(--color-phosphor-dim);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-bone);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border: 1px solid var(--color-line-hot);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--color-phosphor);
+  color: var(--color-phosphor);
 }
 
 .input {
@@ -307,12 +344,25 @@ body::before {
   box-shadow: 0 0 0 1px var(--color-phosphor-dim);
 }
 .input::placeholder {
-  color: var(--color-faint);
+  color: var(--color-dim);
 }
 
 .divider {
   height: 1px;
   background: var(--color-line);
+}
+
+.status-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .scanlines {
@@ -356,15 +406,15 @@ body::before {
   margin: 12px 14px !important;
 }
 .leaflet-popup-close-button {
-  color: var(--color-ash) !important;
+  color: var(--color-steel) !important;
 }
 .leaflet-control-attribution {
   background: var(--color-graphite) !important;
-  color: var(--color-dim) !important;
+  color: var(--color-ash) !important;
   font-size: 9px !important;
   border: 1px solid var(--color-line) !important;
   border-radius: 0 !important;
 }
 .leaflet-control-attribution a {
-  color: var(--color-ash) !important;
+  color: var(--color-steel) !important;
 }
