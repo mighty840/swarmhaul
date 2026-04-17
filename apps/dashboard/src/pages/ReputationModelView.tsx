@@ -116,8 +116,8 @@ function useModelData() {
 
 function TrajectoryChart({
   points,
-  width = 560,
-  height = 160,
+  width = 1200,
+  height = 220,
   highlight,
 }: {
   points: ScenarioPoint[];
@@ -125,7 +125,7 @@ function TrajectoryChart({
   height?: number;
   highlight?: number; // index of point to highlight
 }) {
-  const padding = { top: 10, right: 10, bottom: 20, left: 36 };
+  const padding = { top: 12, right: 16, bottom: 22, left: 40 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
   const n = points.length;
@@ -155,7 +155,13 @@ function TrajectoryChart({
     );
 
   return (
-    <svg width={width} height={height} className="block">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      width="100%"
+      height={height}
+      className="block w-full"
+    >
       {/* Grid lines */}
       {[0, 0.25, 0.5, 0.75, 1].map((v) => (
         <g key={v}>
@@ -370,56 +376,71 @@ function PaymentAllocationSimulator() {
               BUDGET
             </label>
             <input
-              type="number"
-              step="0.05"
+              type="range"
               min="0"
+              max="2"
+              step="0.05"
               value={budget}
               onChange={(e) => setBudget(Number(e.target.value))}
-              className="bg-[var(--color-void,#06060a)] border border-[var(--color-line)] px-2 py-1 text-[11px] tabular-nums text-[var(--color-bone)] w-20 font-mono"
+              className="w-32"
             />
+            <span className="text-[11px] tabular-nums text-[var(--color-bone)] w-12 text-right">
+              {budget.toFixed(2)}
+            </span>
             <span className="text-[10px] text-[var(--color-steel)]">SOL</span>
           </div>
         </div>
       </div>
 
-      <table className="w-full text-[10px] mb-4">
-        <thead>
-          <tr className="text-[var(--color-steel)] tracking-[0.1em]">
-            <th className="text-left font-normal pb-2">AGENT</th>
-            <th className="text-right font-normal pb-2">BID (SOL)</th>
-            <th className="text-right font-normal pb-2">REP</th>
-          </tr>
-        </thead>
-        <tbody>
-          {agents.map((a, i) => (
-            <tr key={i} className="border-t border-[var(--color-line)]">
-              <td className="py-2 text-[var(--color-bone)]">{a.name}</td>
-              <td className="py-2 text-right">
-                <input
-                  type="number"
-                  step="0.01"
-                  value={a.bidSol}
-                  onChange={(e) => updateAgent(i, { bidSol: Number(e.target.value) })}
-                  className="bg-transparent border border-[var(--color-line)] px-2 py-0.5 text-right tabular-nums w-20"
-                />
-              </td>
-              <td className="py-2 text-right">
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  value={a.reputationScore}
-                  onChange={(e) =>
-                    updateAgent(i, { reputationScore: Number(e.target.value) })
-                  }
-                  className="bg-transparent border border-[var(--color-line)] px-2 py-0.5 text-right tabular-nums w-20"
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="w-full mb-4">
+        <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 text-[10px] text-[var(--color-steel)] tracking-[0.1em] pb-2 border-b border-[var(--color-line)]">
+          <div>AGENT</div>
+          <div>BID ── SOL</div>
+          <div>REPUTATION</div>
+        </div>
+        {agents.map((a, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-[1fr_1fr_1fr] gap-4 items-center py-3 border-b border-[var(--color-line)] text-[11px]"
+          >
+            <div className="text-[var(--color-bone)]">{a.name}</div>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0"
+                max={Math.max(1, budget)}
+                step="0.01"
+                value={a.bidSol}
+                onChange={(e) =>
+                  updateAgent(i, { bidSol: Number(e.target.value) })
+                }
+                className="flex-1"
+              />
+              <span className="tabular-nums text-[var(--color-bone)] w-14 text-right">
+                {a.bidSol.toFixed(3)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={a.reputationScore}
+                onChange={(e) =>
+                  updateAgent(i, {
+                    reputationScore: Number(e.target.value),
+                  })
+                }
+                className="flex-1"
+              />
+              <span className="tabular-nums text-[var(--color-bone)] w-12 text-right">
+                {a.reputationScore.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {result && (
         <div>
@@ -539,13 +560,17 @@ function FormationNudgePanel() {
               RAW COST
             </label>
             <input
-              type="number"
-              step="0.1"
+              type="range"
               min="0"
+              max="5"
+              step="0.1"
               value={rawCost}
               onChange={(e) => setRawCost(Number(e.target.value))}
-              className="bg-[var(--color-void,#06060a)] border border-[var(--color-line)] px-2 py-1 text-[11px] tabular-nums text-[var(--color-bone)] w-20 font-mono"
+              className="w-32"
             />
+            <span className="text-[11px] tabular-nums text-[var(--color-bone)] w-12 text-right">
+              {rawCost.toFixed(2)}
+            </span>
             <span className="text-[10px] text-[var(--color-steel)]">SOL</span>
           </div>
         </div>
@@ -707,8 +732,8 @@ export function ReputationModelView() {
                 </div>
               </div>
 
-              <div className="bg-[var(--color-void,#06060a)] border border-[var(--color-line)] p-2">
-                <TrajectoryChart points={currentScenario.points} width={560} height={180} />
+              <div className="bg-[var(--color-void,#06060a)] border border-[var(--color-line)] p-3">
+                <TrajectoryChart points={currentScenario.points} width={1200} height={220} />
               </div>
 
               <div className="grid grid-cols-3 gap-3 mt-3 text-[10px]">
