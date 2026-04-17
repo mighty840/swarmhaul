@@ -7,10 +7,14 @@ FROM oven/bun:1.2.12-slim AS builder
 WORKDIR /app
 
 COPY package.json bun.lock* ./
+COPY apps/api/package.json apps/api/
 COPY apps/agent/package.json apps/agent/
+COPY apps/dashboard/package.json apps/dashboard/
+COPY packages/sdk/package.json packages/sdk/
+COPY packages/solana/package.json packages/solana/
 COPY packages/types/package.json packages/types/
 
-RUN bun install --frozen-lockfile --production=false
+RUN bun install --frozen-lockfile
 
 COPY apps/agent apps/agent
 COPY packages/types packages/types
@@ -24,6 +28,10 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app /app
+
+# Bake agent configs so containers can boot with a CONFIG_PATH pointing
+# at /app/config/agent-<name>.config.json (see docs/ops/orca-service.toml).
+COPY apps/agent/configs /app/config
 
 COPY <<'SHELL' /entrypoint.sh
 #!/usr/bin/env bash
