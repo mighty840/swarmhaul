@@ -8,6 +8,9 @@ skip-lint = false
 [programs.localnet]
 swarmhaul = "GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg"
 
+[programs.devnet]
+swarmhaul = "GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg"
+
 [registry]
 url = "https://api.apr.dev"
 
