@@ -23,7 +23,7 @@ port = 5432
 network = "swarmhaul"
 aliases = ["db"]
 [service.placement]
-node = "production"
+node = "vmd169252"
 [service.env]
 POSTGRES_DB = "swarmhaul"
 POSTGRES_USER = "swarmhaul"
@@ -42,7 +42,7 @@ domain = "api.swarmhaul.defited.com"
 network = "swarmhaul"
 depends_on = ["swarmhaul-db"]
 [service.placement]
-node = "production"
+node = "vmd169252"
 [service.env]
 NODE_ENV = "production"
 DATABASE_URL = "postgresql://swarmhaul:${secrets.SWARMHAUL_DB_PASSWORD}@db:5432/swarmhaul"
@@ -64,6 +64,8 @@ port = 80
 domain = "dashboard.swarmhaul.defited.com"
 network = "swarmhaul"
 depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
 [service.resources]
 memory = "128Mi"
 cpu = 0.25
@@ -78,6 +80,8 @@ name = "swarmhaul-agent-alpha"
 image = "registry.meghsakha.com/swarmhaul-agent:latest"
 network = "swarmhaul"
 depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
 [service.env]
 CONFIG_PATH = "/app/config/agent-alpha.config.json"
 SOLANA_RPC_URL = "https://api.devnet.solana.com"
@@ -92,6 +96,8 @@ name = "swarmhaul-agent-bravo"
 image = "registry.meghsakha.com/swarmhaul-agent:latest"
 network = "swarmhaul"
 depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
 [service.env]
 CONFIG_PATH = "/app/config/agent-bravo.config.json"
 SOLANA_RPC_URL = "https://api.devnet.solana.com"
@@ -106,6 +112,8 @@ name = "swarmhaul-agent-charlie"
 image = "registry.meghsakha.com/swarmhaul-agent:latest"
 network = "swarmhaul"
 depends_on = ["swarmhaul-api"]
+[service.placement]
+node = "vmd169252"
 [service.env]
 CONFIG_PATH = "/app/config/agent-charlie.config.json"
 SOLANA_RPC_URL = "https://api.devnet.solana.com"
