@@ -78,10 +78,10 @@ orca webhooks add --repo mighty840/swarmhaul \
 orca webhooks add --repo mighty840/swarmhaul \
   --service swarmhaul-agent-charlie --branch main
 
-orca deploy swarmhaul
+orca deploy --file services/swarmhaul
 ```
 
-> **Important — this first `orca deploy swarmhaul` is mandatory before
+> **Important — this first manual `orca deploy` is mandatory before
 > webhooks work.** Orca's webhook handler calls
 > `reconciler::redeploy(<service>)` which errors with *"service not
 > found"* if the service has never been bootstrapped. Without the
@@ -104,7 +104,7 @@ After the first successful boot, open a one-shot shell in the API
 container and run:
 
 ```sh
-bunx tsx apps/api/src/scripts/seed-e2e-reps.ts
+bun run src/scripts/seed-e2e-reps.ts   # inside /app/apps/api
 ```
 
 Update the pubkeys in that script to match the three Orca-hosted
