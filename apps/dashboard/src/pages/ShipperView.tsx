@@ -1,8 +1,31 @@
 import { useState } from "react";
-import { postPackage } from "../hooks/useSwarm.js";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Panel } from "../components/Panel.js";
+import { useListPackage } from "../hooks/useListPackage.js";
+import { useErrorReporter } from "../components/ErrorBanner.js";
+
+function shortenPubkey(pk: string): string {
+  if (pk.length <= 12) return pk;
+  return `${pk.slice(0, 6)}··${pk.slice(-4)}`;
+}
+
+const PHASE_LABEL: Record<string, string> = {
+  idle: "READY",
+  building: "BUILDING TX…",
+  "awaiting-signature": "AWAITING SIGNATURE",
+  sending: "BROADCASTING TX",
+  confirming: "CONFIRMING ON-CHAIN",
+  persisting: "PERSISTING",
+  done: "DELIVERED",
+  error: "ERROR",
+};
 
 export function ShipperView() {
+  const { publicKey, connected } = useWallet();
+  const { dispatch, phase, reset } = useListPackage();
+  const { push } = useErrorReporter();
+
   const [form, setForm] = useState({
     description: "",
     weightKg: 1,
@@ -13,68 +36,70 @@ export function ShipperView() {
     destLat: 48.155,
     destLng: 11.605,
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const submitting =
+    phase.kind === "building" ||
+    phase.kind === "awaiting-signature" ||
+    phase.kind === "sending" ||
+    phase.kind === "confirming" ||
+    phase.kind === "persisting";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setResult(null);
-    try {
-      const pkg = await postPackage({
-        ...form,
-        shipperPubkey: "demo-shipper",
-      });
-      setResult({ ok: true, msg: `Package dispatched ▸ ${pkg.id}` });
+    const result = await dispatch(form);
+    if (result) {
       setForm((f) => ({ ...f, description: "" }));
-    } catch (err) {
-      setResult({ ok: false, msg: `Error: ${err}` });
-    } finally {
-      setSubmitting(false);
+    } else if (phase.kind === "error") {
+      push(phase.message, "dispatch");
     }
   };
-
-  const Input = ({
-    label,
-    value,
-    onChange,
-    type = "text",
-    step,
-    placeholder,
-  }: {
-    label: string;
-    value: string | number;
-    onChange: (v: string) => void;
-    type?: string;
-    step?: string;
-    placeholder?: string;
-  }) => (
-    <div>
-      <label className="block label mb-2">{label}</label>
-      <input
-        type={type}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="input"
-      />
-    </div>
-  );
 
   return (
     <div className="max-w-3xl mx-auto space-y-5 glitch-in">
       <div className="border-b border-[var(--color-line)] pb-4">
         <div className="label mb-2">▸ DISPATCH TERMINAL</div>
         <h1 className="text-[32px] leading-none tracking-[-0.02em] font-light text-[var(--color-bone)]">
-          <span className="display-serif text-[var(--color-magenta)]">Post</span> a Task
+          <span className="display-serif text-[var(--color-magenta)]">Post</span>{" "}
+          a Task
         </h1>
         <p className="text-[12px] text-[var(--color-steel)] mt-3 max-w-lg leading-relaxed">
-          List a package for autonomous agent fulfillment. Bids arrive within
-          seconds. Funds escrow in a Solana PDA vault until each leg is
+          List a package for autonomous agent fulfillment. Your wallet signs
+          and funds the escrow; bids from autonomous agents arrive within
+          seconds. Funds stay locked in a Solana PDA vault until each leg is
           confirmed on-chain.
         </p>
       </div>
+
+      {/* Wallet banner */}
+      <Panel
+        title={connected ? "CONNECTED WALLET" : "NO WALLET CONNECTED"}
+        accent={connected ? "phosphor" : "amber"}
+        meta={connected ? "READY TO DISPATCH" : "CONNECT TO PROCEED"}
+      >
+        <div className="p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            {connected && publicKey ? (
+              <>
+                <div className="dot-live" />
+                <div className="min-w-0">
+                  <div className="label-muted mb-0.5">SHIPPER PUBKEY</div>
+                  <div className="pubkey text-[13px] text-[var(--color-bone)]">
+                    {shortenPubkey(publicKey.toBase58())}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="dot-dead" />
+                <div className="text-[12px] text-[var(--color-steel)]">
+                  Connect a Phantom or Solflare wallet on devnet to dispatch.
+                </div>
+              </>
+            )}
+          </div>
+          <WalletMultiButton />
+        </div>
+      </Panel>
 
       <Panel title="NEW DISPATCH ORDER" accent="magenta">
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
@@ -107,7 +132,9 @@ export function ShipperView() {
                 type="number"
                 step="0.1"
                 value={form.volumeLitres}
-                onChange={(e) => setForm({ ...form, volumeLitres: +e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, volumeLitres: +e.target.value })
+                }
                 className="input"
               />
             </div>
@@ -117,7 +144,9 @@ export function ShipperView() {
                 type="number"
                 step="0.01"
                 value={form.maxBudgetSol}
-                onChange={(e) => setForm({ ...form, maxBudgetSol: +e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, maxBudgetSol: +e.target.value })
+                }
                 className="input"
               />
             </div>
@@ -171,25 +200,68 @@ export function ShipperView() {
           <div className="flex items-center gap-4 pt-2 border-t border-[var(--color-line)]">
             <button
               type="submit"
-              disabled={submitting || !form.description}
+              disabled={submitting || !form.description || !connected}
               className="btn-primary"
             >
-              {submitting ? "DISPATCHING…" : "▸ DISPATCH ORDER"}
+              {submitting
+                ? PHASE_LABEL[phase.kind] ?? "WORKING…"
+                : "▸ DISPATCH ORDER"}
             </button>
             <span className="text-[10px] text-[var(--color-steel)] tracking-[0.12em] uppercase font-semibold">
               {form.maxBudgetSol} SOL WILL BE LOCKED IN ESCROW PDA
             </span>
           </div>
 
-          {result && (
-            <div
-              className={`text-[11px] p-3 border ${
-                result.ok
-                  ? "border-[var(--color-phosphor)] bg-[var(--color-phosphor-dim)] text-[var(--color-phosphor)]"
-                  : "border-[var(--color-blood)] text-[var(--color-blood)]"
-              }`}
-            >
-              {result.ok ? "◉ " : "✕ "} {result.msg}
+          {phase.kind === "done" && (
+            <div className="text-[11px] p-3 border border-[var(--color-phosphor)] bg-[var(--color-phosphor-dim)] text-[var(--color-bone)]">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="font-semibold">
+                  ◉ DELIVERED ▸ {shortenPubkey(phase.result.packageId)}
+                </span>
+                <span className="flex items-center gap-3">
+                  <a
+                    href={phase.result.listTxUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--color-phosphor)] hover:underline"
+                  >
+                    LIST TX ↗
+                  </a>
+                  <a
+                    href={phase.result.explorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--color-phosphor)] hover:underline"
+                  >
+                    PACKAGE ↗
+                  </a>
+                  <button
+                    type="button"
+                    onClick={reset}
+                    className="text-[var(--color-ash)] hover:text-[var(--color-bone)]"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {phase.kind === "error" && (
+            <div className="text-[11px] p-3 border border-[var(--color-blood)] text-[var(--color-bone)]">
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  <span className="text-[var(--color-blood)] font-bold mr-2">✕</span>
+                  {phase.message}
+                </span>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="text-[var(--color-ash)] hover:text-[var(--color-bone)]"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           )}
         </form>
@@ -201,10 +273,7 @@ export function ShipperView() {
           { label: "SWARM FORMATION", value: "<15s", note: "MULTI-AGENT" },
           { label: "PROTOCOL FEE", value: "0%", note: "DURING BETA" },
         ].map((item) => (
-          <div
-            key={item.label}
-            className="panel p-4"
-          >
+          <div key={item.label} className="panel p-4">
             <div className="label mb-2">{item.label}</div>
             <div className="stat-num-sm text-[var(--color-phosphor)]">
               {item.value}
