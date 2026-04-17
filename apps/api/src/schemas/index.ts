@@ -77,6 +77,33 @@ export const PackageCreateBody = z.object({
 });
 export type PackageCreateBodyType = z.infer<typeof PackageCreateBody>;
 
+// Wallet-signed dispatch: build-tx returns an unsigned transaction
+// for the shipper's wallet to sign + fund. Confirm persists after
+// the signed transaction lands on chain.
+export const PackageBuildTxBody = PackageCreateBody;
+export type PackageBuildTxBodyType = z.infer<typeof PackageBuildTxBody>;
+
+export const PackageConfirmBody = z.object({
+  packageId: z.string().uuid(),
+  signature: z
+    .string()
+    .min(64)
+    .max(128, "signature too long")
+    .regex(/^[1-9A-HJ-NP-Za-km-z]+$/, "signature must be base58"),
+  shipperPubkey: SolanaPubkey,
+  onChainPackage: SolanaPubkey,
+  onChainVault: SolanaPubkey,
+  originLat: Latitude,
+  originLng: Longitude,
+  destLat: Latitude,
+  destLng: Longitude,
+  description: z.string().min(1).max(200),
+  weightKg: PositiveKg,
+  volumeLitres: PositiveLitres,
+  maxBudgetSol: PositiveSol,
+});
+export type PackageConfirmBodyType = z.infer<typeof PackageConfirmBody>;
+
 export const PackageIdParam = z.object({
   id: z.string().uuid("not a valid UUID"),
 });

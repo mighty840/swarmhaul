@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 export type ViewKey =
   | "economy"
@@ -47,12 +48,6 @@ export function StatusBar({
     .toISOString()
     .replace("T", " ")
     .replace(/\.\d+Z/, " UTC");
-
-  const handleConnectWallet = () => {
-    window.alert(
-      "Wallet flow ships in the next PR (devnet + Phantom signing). Stay tuned.",
-    );
-  };
 
   return (
     <header className="border-b border-[var(--color-line)] bg-[var(--color-graphite)]">
@@ -110,9 +105,7 @@ export function StatusBar({
             {ts}
           </span>
 
-          <button className="btn-primary" onClick={handleConnectWallet}>
-            CONNECT WALLET
-          </button>
+          <WalletMultiButton />
         </div>
       </div>
 
