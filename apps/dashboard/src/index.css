@@ -328,6 +328,18 @@ body::before {
   color: var(--color-phosphor);
 }
 
+/* Hide native number-input spinner arrows — we pair these with sliders
+   in ShipperView and want the value field to read as a plain number. */
+.no-spin::-webkit-inner-spin-button,
+.no-spin::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .input {
   background: var(--color-void);
   border: 1px solid var(--color-line);
