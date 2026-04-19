@@ -54,14 +54,27 @@ export function StatusBar({
       {/* Top row: brand + time + status */}
       <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--color-line)]">
         <div className="flex items-center gap-5">
-          <div className="flex items-baseline gap-2.5">
+          <button
+            type="button"
+            onClick={() => onViewChange("economy")}
+            className="flex items-center gap-2.5 group cursor-pointer"
+            aria-label="SwarmHaul — back to observatory"
+          >
+            <img
+              src="/logo.svg"
+              alt=""
+              width={24}
+              height={24}
+              className="transition-[filter] duration-200 group-hover:[filter:drop-shadow(0_0_6px_rgba(0,212,255,0.55))]"
+              style={{ filter: "drop-shadow(0 0 4px rgba(0,212,255,0.35))" }}
+            />
             <span className="text-[15px] font-bold tracking-[0.04em] text-[var(--color-bone)]">
               SWARMHAUL
             </span>
-            <span className="text-[10px] tracking-[0.14em] uppercase text-[var(--color-steel)]">
+            <span className="hidden sm:inline text-[10px] tracking-[0.14em] uppercase text-[var(--color-steel)]">
               / AGENT COORDINATION PROTOCOL
             </span>
-          </div>
+          </button>
 
           <div className="hidden md:flex items-center gap-2 px-2 py-0.5 border border-[var(--color-line-hot)]">
             <span className="text-[9px] tracking-[0.16em] text-[var(--color-ash)]">

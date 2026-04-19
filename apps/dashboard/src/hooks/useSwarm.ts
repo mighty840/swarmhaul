@@ -72,23 +72,35 @@ export function useSwarmData() {
   }, [fetchData]);
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_URL}/ws`);
-    wsRef.current = ws;
+    let cancelled = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => {
-      setConnected(false);
-      setTimeout(() => {
-        wsRef.current = new WebSocket(`${WS_URL}/ws`);
-      }, 3000);
-    };
-    ws.onmessage = (e) => {
-      const event: WSEvent = JSON.parse(e.data);
-      setWsEvents((prev) => [event, ...prev].slice(0, 50));
-      fetchData(); // refresh on any event
+    const connect = () => {
+      if (cancelled) return;
+      const ws = new WebSocket(`${WS_URL}/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => setConnected(true);
+      ws.onclose = () => {
+        setConnected(false);
+        if (cancelled) return;
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+      ws.onerror = () => ws.close();
+      ws.onmessage = (e) => {
+        const event: WSEvent = JSON.parse(e.data);
+        setWsEvents((prev) => [event, ...prev].slice(0, 50));
+        fetchData();
+      };
     };
 
-    return () => ws.close();
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+    };
   }, [fetchData]);
 
   return { packages, stats, activity, leaderboard, wsEvents, connected };
