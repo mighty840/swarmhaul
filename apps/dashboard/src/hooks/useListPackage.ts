@@ -35,12 +35,12 @@ type Phase =
 
 export function useListPackage() {
   const { connection } = useConnection();
-  const { publicKey, signTransaction, connected } = useWallet();
+  const { publicKey, sendTransaction, connected } = useWallet();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 
   const dispatch = useCallback(
     async (input: ListPackageInput): Promise<ListPackageResult | null> => {
-      if (!connected || !publicKey || !signTransaction) {
+      if (!connected || !publicKey || !sendTransaction) {
         setPhase({ kind: "error", message: "Connect a wallet first" });
         return null;
       }
@@ -64,6 +64,8 @@ export function useListPackage() {
           transaction,
           onChainPackage,
           onChainVault,
+          blockhash,
+          lastValidBlockHeight,
         } = (await buildRes.json()) as {
           packageId: string;
           transaction: string;
@@ -74,18 +76,28 @@ export function useListPackage() {
         };
 
         setPhase({ kind: "awaiting-signature" });
-        const tx = Transaction.from(Buffer.from(transaction, "base64"));
-        const signed = await signTransaction(tx);
-
-        setPhase({ kind: "sending" });
-        const signature = await connection.sendRawTransaction(
-          signed.serialize(),
-          { skipPreflight: false, maxRetries: 3 },
+        // Node's Buffer is not a browser global; decode base64 with
+        // atob + Uint8Array so this works in Vite / the dashboard runtime.
+        const txBytes = Uint8Array.from(atob(transaction), (c) =>
+          c.charCodeAt(0),
         );
+        const tx = Transaction.from(txBytes);
+
+        // sendTransaction (from wallet-adapter) is the canonical path:
+        // it signs + broadcasts + tracks retries in one call, avoiding
+        // the 'already processed' race you get from signTransaction +
+        // manual sendRawTransaction (Phantom can broadcast internally
+        // after signing, causing a duplicate when we then try to send).
+        // skipPreflight: true because Phantom already simulates client-side.
+        setPhase({ kind: "sending" });
+        const signature = await sendTransaction(tx, connection, {
+          skipPreflight: true,
+          maxRetries: 3,
+        });
 
         setPhase({ kind: "confirming" });
         const confirmation = await connection.confirmTransaction(
-          signature,
+          { signature, blockhash, lastValidBlockHeight },
           "confirmed",
         );
         if (confirmation.value.err) {
@@ -130,7 +142,7 @@ export function useListPackage() {
         return null;
       }
     },
-    [connected, publicKey, signTransaction, connection],
+    [connected, publicKey, sendTransaction, connection],
   );
 
   return { dispatch, phase, reset: () => setPhase({ kind: "idle" }) };
