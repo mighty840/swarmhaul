@@ -2,8 +2,9 @@
  * App factory: builds the Fastify instance without listening.
  * Used by both the production entrypoint (index.ts) and integration tests.
  */
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import websocket from "@fastify/websocket";
 import {
   serializerCompiler,
@@ -22,7 +23,13 @@ import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
 
 export async function buildApp(opts?: { logger?: boolean }) {
-  const app = Fastify({ logger: opts?.logger ?? false }).withTypeProvider<ZodTypeProvider>();
+  // 16KB JSON body cap — our largest legitimate payload (a bid with
+  // reasoning text) is under 2KB; 16KB leaves generous headroom while
+  // blocking spam payloads from bloating DB writes.
+  const app = Fastify({
+    logger: opts?.logger ?? false,
+    bodyLimit: 16 * 1024,
+  }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -38,6 +45,29 @@ export async function buildApp(opts?: { logger?: boolean }) {
       return cb(new Error(`CORS: origin ${origin} not allowed`), false);
     },
     credentials: true,
+  });
+
+  // Per-IP rate limit. Defaults are the safe public-demo values —
+  // override via RATE_LIMIT_MAX / RATE_LIMIT_WINDOW env vars if a
+  // specific deployment needs different behaviour (e.g. internal
+  // stress benchmarks).
+  //
+  // /health and the WebSocket are allow-listed so Orca's liveness
+  // probe and long-lived dashboard sessions don't trip the limit.
+  // keyGenerator honours X-Forwarded-For for real client IPs behind
+  // the Orca proxy.
+  await app.register(rateLimit, {
+    global: true,
+    max: Number(process.env.RATE_LIMIT_MAX ?? 120),
+    timeWindow: process.env.RATE_LIMIT_WINDOW ?? "1 minute",
+    allowList: (req: FastifyRequest): boolean =>
+      req.url === "/health" ||
+      req.url === "/ws" ||
+      req.url.startsWith("/ws?"),
+    keyGenerator: (req: FastifyRequest): string =>
+      (req.headers["x-forwarded-for"] as string | undefined)
+        ?.split(",")[0]
+        ?.trim() ?? req.ip,
   });
 
   await app.register(websocket);
