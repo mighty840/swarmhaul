@@ -152,9 +152,19 @@
       ],
       "accounts": [
         {
-          "name": "courier",
+          "name": "recipient",
+          "docs": [
+            "Shipper/consignee acknowledging receipt. Pays the tx fee."
+          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "courier",
+          "docs": [
+            "Not a signer — the courier is paid, not confirming."
+          ],
+          "writable": true
         },
         {
           "name": "leg_account",
@@ -193,9 +203,8 @@
         {
           "name": "courier_reputation",
           "docs": [
-            "Reputation PDA for the courier — must match the leg's bound courier (signer).",
-            "Mutated to bump legs_completed and recompute reliability_score.",
-            "Created on first assignment in assign_leg, so it always exists by confirm_leg time."
+            "Reputation PDA for the courier.",
+            "Mutated to bump legs_completed and recompute reliability_score."
           ],
           "writable": true,
           "pda": {
@@ -501,6 +510,63 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "update_vehicle",
+      "discriminator": [
+        114,
+        18,
+        182,
+        153,
+        74,
+        66,
+        126,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "vehicle_profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "hourly_rate_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "boot_volume_litres",
+          "type": "u16"
+        },
+        {
+          "name": "is_autonomous",
+          "type": "bool"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -647,6 +713,32 @@
         32,
         31,
         113
+      ]
+    },
+    {
+      "name": "VehicleRegistered",
+      "discriminator": [
+        60,
+        16,
+        188,
+        32,
+        69,
+        98,
+        134,
+        178
+      ]
+    },
+    {
+      "name": "VehicleUpdated",
+      "discriminator": [
+        138,
+        118,
+        179,
+        238,
+        9,
+        204,
+        85,
+        41
       ]
     }
   ],
@@ -1067,6 +1159,54 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VehicleRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "hourly_rate_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "boot_volume_litres",
+            "type": "u16"
+          },
+          {
+            "name": "is_autonomous",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VehicleUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "hourly_rate_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "boot_volume_litres",
+            "type": "u16"
+          },
+          {
+            "name": "is_autonomous",
+            "type": "bool"
           }
         ]
       }

@@ -97,4 +97,8 @@ pub enum SwarmError {
     InsufficientVault,
     #[msg("Arithmetic overflow")]
     Overflow,
+    #[msg("Signer is not the shipper/recipient authorized to confirm delivery")]
+    UnauthorizedRecipient,
+    #[msg("Multi-leg confirm is not yet supported — v1 accepts single-leg swarms only")]
+    MultiLegNotSupported,
 }

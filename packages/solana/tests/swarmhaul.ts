@@ -32,20 +32,20 @@ describe("swarmhaul", () => {
 
   // ─── Happy path ────────────────────────────────────────────────
 
-  describe("happy path: list → form → assign 2 legs → confirm → settle", () => {
+  // NOTE: v1 confirm_leg is recipient-signs (shipper). Multi-leg
+  // intermediate-hop handoff auth ships in week 3 — see
+  // packages/solana/programs/swarmhaul/src/instructions/confirm_leg.rs
+  describe("happy path: list → form → assign → shipper confirms → settle", () => {
     const courier1 = Keypair.generate();
-    const courier2 = Keypair.generate();
     const packageId = uuidToBytes();
     const budgetLamports = new anchor.BN(LAMPORTS_PER_SOL);
     let packagePda: PublicKey;
     let vaultPda: PublicKey;
     let swarmPda: PublicKey;
     let leg0Pda: PublicKey;
-    let leg1Pda: PublicKey;
 
     before(async () => {
       await airdrop(provider, courier1.publicKey);
-      await airdrop(provider, courier2.publicKey);
 
       [packagePda] = PublicKey.findProgramAddressSync(
         [Buffer.from("package"), Buffer.from(packageId)],
@@ -61,10 +61,6 @@ describe("swarmhaul", () => {
       );
       [leg0Pda] = PublicKey.findProgramAddressSync(
         [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([0])],
-        program.programId,
-      );
-      [leg1Pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("leg"), swarmPda.toBuffer(), Buffer.from([1])],
         program.programId,
       );
     });
@@ -87,9 +83,9 @@ describe("swarmhaul", () => {
       expect(await provider.connection.getBalance(vaultPda)).to.equal(LAMPORTS_PER_SOL);
     });
 
-    it("forms swarm with 2 legs (coordinator-only)", async () => {
+    it("forms swarm with 1 leg (coordinator-only)", async () => {
       await program.methods
-        .formSwarm(2, new anchor.BN(LAMPORTS_PER_SOL * 0.8))
+        .formSwarm(1, new anchor.BN(LAMPORTS_PER_SOL * 0.4))
         .accounts({
           coordinator: shipper.publicKey,
           packageAccount: packagePda,
@@ -99,12 +95,12 @@ describe("swarmhaul", () => {
         .rpc();
 
       const swarm = await program.account.swarmAccount.fetch(swarmPda);
-      expect(swarm.totalLegs).to.equal(2);
+      expect(swarm.totalLegs).to.equal(1);
       expect(swarm.assignedLegs).to.equal(0);
       expect(swarm.status).to.deep.equal({ forming: {} });
     });
 
-    it("assigns leg 0 to courier1 → courier1 reputation legs_accepted = 1", async () => {
+    it("assigns leg 0 to courier1 → swarm becomes Active", async () => {
       const courier1Rep = repPda(program.programId, courier1.publicKey);
 
       await program.methods
@@ -122,37 +118,23 @@ describe("swarmhaul", () => {
       const leg = await program.account.legAccount.fetch(leg0Pda);
       expect(leg.courier.toBase58()).to.equal(courier1.publicKey.toBase58());
 
+      const swarm = await program.account.swarmAccount.fetch(swarmPda);
+      expect(swarm.assignedLegs).to.equal(1);
+      expect(swarm.status).to.deep.equal({ active: {} });
+
       const rep = await program.account.agentReputationAccount.fetch(courier1Rep);
       expect(rep.legsAccepted).to.equal(1);
       expect(rep.legsCompleted).to.equal(0);
-      expect(rep.reliabilityScore).to.equal(0); // 0/1 = 0
     });
 
-    it("assigns leg 1 → swarm becomes Active", async () => {
-      await program.methods
-        .assignLeg(1, courier2.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.4))
-        .accounts({
-          coordinator: shipper.publicKey,
-          packageAccount: packagePda,
-          swarmAccount: swarmPda,
-          legAccount: leg1Pda,
-          courierReputation: repPda(program.programId, courier2.publicKey),
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-
-      const swarm = await program.account.swarmAccount.fetch(swarmPda);
-      expect(swarm.assignedLegs).to.equal(2);
-      expect(swarm.status).to.deep.equal({ active: {} });
-    });
-
-    it("courier1 confirms leg 0 → paid 0.4 SOL + reputation = 100%", async () => {
+    it("shipper (recipient) confirms leg → courier paid 0.4 SOL + rep 100%", async () => {
       const courier1Rep = repPda(program.programId, courier1.publicKey);
       const before = await provider.connection.getBalance(courier1.publicKey);
 
       await program.methods
         .confirmLeg()
         .accounts({
+          recipient: shipper.publicKey,
           courier: courier1.publicKey,
           legAccount: leg0Pda,
           swarmAccount: swarmPda,
@@ -161,7 +143,6 @@ describe("swarmhaul", () => {
           courierReputation: courier1Rep,
           systemProgram: SystemProgram.programId,
         })
-        .signers([courier1])
         .rpc();
 
       const after = await provider.connection.getBalance(courier1.publicKey);
@@ -170,29 +151,13 @@ describe("swarmhaul", () => {
       const rep = await program.account.agentReputationAccount.fetch(courier1Rep);
       expect(rep.legsCompleted).to.equal(1);
       expect(rep.legsAccepted).to.equal(1);
-      expect(rep.reliabilityScore).to.equal(100); // 1/1 * 100
+      expect(rep.reliabilityScore).to.equal(100);
 
       const pkg = await program.account.packageAccount.fetch(packagePda);
       expect(pkg.status).to.deep.equal({ inTransit: {} });
-    });
-
-    it("courier2 confirms leg 1", async () => {
-      await program.methods
-        .confirmLeg()
-        .accounts({
-          courier: courier2.publicKey,
-          legAccount: leg1Pda,
-          swarmAccount: swarmPda,
-          packageAccount: packagePda,
-          vault: vaultPda,
-          courierReputation: repPda(program.programId, courier2.publicKey),
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([courier2])
-        .rpc();
 
       const swarm = await program.account.swarmAccount.fetch(swarmPda);
-      expect(swarm.completedLegs).to.equal(2);
+      expect(swarm.completedLegs).to.equal(1);
     });
 
     it("settles → surplus returned, package delivered", async () => {
@@ -290,33 +255,57 @@ describe("swarmhaul", () => {
         .rpc();
     });
 
-    it("rejects random signer trying to confirm someone else's leg", async () => {
+    it("rejects courier self-confirming (must be shipper)", async () => {
       try {
         await program.methods
           .confirmLeg()
           .accounts({
-            courier: attacker.publicKey,
+            recipient: courier.publicKey,
+            courier: courier.publicKey,
             legAccount: legPda,
             swarmAccount: swarmPda,
             packageAccount: packagePda,
             vault: vaultPda,
-            courierReputation: repPda(program.programId, attacker.publicKey),
+            courierReputation: repPda(program.programId, courier.publicKey),
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([courier])
+          .rpc();
+        expect.fail("should have rejected courier self-confirmation");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/UnauthorizedRecipient/);
+      }
+    });
+
+    it("rejects random attacker posing as recipient", async () => {
+      try {
+        await program.methods
+          .confirmLeg()
+          .accounts({
+            recipient: attacker.publicKey,
+            courier: courier.publicKey,
+            legAccount: legPda,
+            swarmAccount: swarmPda,
+            packageAccount: packagePda,
+            vault: vaultPda,
+            courierReputation: repPda(program.programId, courier.publicKey),
             systemProgram: SystemProgram.programId,
           })
           .signers([attacker])
           .rpc();
         expect.fail("should have rejected attacker");
       } catch (err: any) {
-        expect(err.toString()).to.match(/NotAssignedCourier|AccountNotInitialized/);
+        expect(err.toString()).to.match(/UnauthorizedRecipient/);
       }
     });
 
-    it("rejects double confirmation by the legitimate courier", async () => {
+    it("rejects double confirmation by the shipper", async () => {
       const courierRep = repPda(program.programId, courier.publicKey);
 
       await program.methods
         .confirmLeg()
         .accounts({
+          recipient: shipper.publicKey,
           courier: courier.publicKey,
           legAccount: legPda,
           swarmAccount: swarmPda,
@@ -325,13 +314,13 @@ describe("swarmhaul", () => {
           courierReputation: courierRep,
           systemProgram: SystemProgram.programId,
         })
-        .signers([courier])
         .rpc();
 
       try {
         await program.methods
           .confirmLeg()
           .accounts({
+            recipient: shipper.publicKey,
             courier: courier.publicKey,
             legAccount: legPda,
             swarmAccount: swarmPda,
@@ -340,7 +329,6 @@ describe("swarmhaul", () => {
             courierReputation: courierRep,
             systemProgram: SystemProgram.programId,
           })
-          .signers([courier])
           .rpc();
         expect.fail("should have rejected double confirmation");
       } catch (err: any) {
@@ -492,10 +480,11 @@ describe("swarmhaul", () => {
       expect(rep.legsCompleted).to.equal(0);
       expect(rep.reliabilityScore).to.equal(0);
 
-      // After confirm: completed=1, score=100
+      // After confirm (signed by shipper/recipient): completed=1, score=100
       await program.methods
         .confirmLeg()
         .accounts({
+          recipient: shipper.publicKey,
           courier: courier.publicKey,
           legAccount: lPda,
           swarmAccount: sPda,
@@ -504,12 +493,110 @@ describe("swarmhaul", () => {
           courierReputation: courierRep,
           systemProgram: SystemProgram.programId,
         })
-        .signers([courier])
         .rpc();
 
       rep = await program.account.agentReputationAccount.fetch(courierRep);
       expect(rep.legsCompleted).to.equal(1);
       expect(rep.reliabilityScore).to.equal(100);
+    });
+  });
+
+  // ─── v1: reject multi-leg confirm_leg ──────────────────────────
+  //
+  // Multi-leg intermediate-hop handoff auth (recipient = next-hop
+  // courier) is a v2 concern. v1 enforces single-leg only at the
+  // confirm_leg boundary so no swarm can half-settle with ambiguous
+  // recipient semantics.
+
+  describe("v1 single-leg-only constraint", () => {
+    it("rejects confirm_leg on a multi-leg swarm", async () => {
+      const courier = Keypair.generate();
+      await airdrop(provider, courier.publicKey);
+      const newPackageId = uuidToBytes();
+      const [pkgPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("package"), Buffer.from(newPackageId)],
+        program.programId,
+      );
+      const [vPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), pkgPda.toBuffer()],
+        program.programId,
+      );
+      const [sPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("swarm"), pkgPda.toBuffer()],
+        program.programId,
+      );
+      const [l0Pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("leg"), sPda.toBuffer(), Buffer.from([0])],
+        program.programId,
+      );
+      const [l1Pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("leg"), sPda.toBuffer(), Buffer.from([1])],
+        program.programId,
+      );
+      const courierRep = repPda(program.programId, courier.publicKey);
+
+      await program.methods
+        .listPackage(newPackageId, new anchor.BN(LAMPORTS_PER_SOL), shipper.publicKey)
+        .accounts({
+          shipper: shipper.publicKey,
+          packageAccount: pkgPda,
+          vault: vPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .formSwarm(2, new anchor.BN(LAMPORTS_PER_SOL * 0.6))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: pkgPda,
+          swarmAccount: sPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .assignLeg(0, courier.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.3))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: pkgPda,
+          swarmAccount: sPda,
+          legAccount: l0Pda,
+          courierReputation: courierRep,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .assignLeg(1, courier.publicKey, new anchor.BN(LAMPORTS_PER_SOL * 0.3))
+        .accounts({
+          coordinator: shipper.publicKey,
+          packageAccount: pkgPda,
+          swarmAccount: sPda,
+          legAccount: l1Pda,
+          courierReputation: courierRep,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      try {
+        await program.methods
+          .confirmLeg()
+          .accounts({
+            recipient: shipper.publicKey,
+            courier: courier.publicKey,
+            legAccount: l0Pda,
+            swarmAccount: sPda,
+            packageAccount: pkgPda,
+            vault: vPda,
+            courierReputation: courierRep,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        expect.fail("should reject confirm_leg on multi-leg swarm");
+      } catch (err: any) {
+        expect(err.toString()).to.match(/MultiLegNotSupported/);
+      }
     });
   });
 
@@ -690,10 +777,11 @@ describe("swarmhaul", () => {
     });
 
     it("rejects settle by non-coordinator", async () => {
-      // Confirm the leg first so settle WOULD succeed
+      // Confirm the leg first (signed by shipper/recipient) so settle WOULD succeed
       await program.methods
         .confirmLeg()
         .accounts({
+          recipient: shipper.publicKey,
           courier: courier.publicKey,
           legAccount: legPda,
           swarmAccount: swarmPda,
@@ -702,7 +790,6 @@ describe("swarmhaul", () => {
           courierReputation: repPda(program.programId, courier.publicKey),
           systemProgram: SystemProgram.programId,
         })
-        .signers([courier])
         .rpc();
 
       try {

@@ -158,6 +158,7 @@ export const SwarmIdParam = z.object({
 
 export const LegConfirmBody = z.object({
   agentPubkey: SolanaPubkey,
+  recipientPubkey: SolanaPubkey.optional(),
   confirmSignature: z.string().min(40).max(120).optional(),
 });
 export type LegConfirmBodyType = z.infer<typeof LegConfirmBody>;
@@ -165,6 +166,11 @@ export type LegConfirmBodyType = z.infer<typeof LegConfirmBody>;
 export const LegIdParam = z.object({
   legId: z.string().uuid(),
 });
+
+export const LegBuildConfirmTxBody = z.object({
+  recipientPubkey: SolanaPubkey,
+});
+export type LegBuildConfirmTxBodyType = z.infer<typeof LegBuildConfirmTxBody>;
 
 // ─── Reputation routes ─────────────────────────────────────────────
 

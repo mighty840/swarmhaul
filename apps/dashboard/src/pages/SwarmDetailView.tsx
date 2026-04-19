@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import type { AgentReputation, Package } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
 import { useErrorReporter } from "../components/ErrorBanner.js";
+import { useConfirmDelivery } from "../hooks/useConfirmDelivery.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 const EXPLORER_BASE = "https://explorer.solana.com";
@@ -191,6 +193,9 @@ export function SwarmDetailView({
   const [pkg, setPkg] = useState<RawPackage | null>(null);
   const [loading, setLoading] = useState(true);
   const { push } = useErrorReporter();
+  const { publicKey } = useWallet();
+  const { confirm, phase, reset } = useConfirmDelivery();
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -215,7 +220,17 @@ export function SwarmDetailView({
     return () => {
       cancelled = true;
     };
-  }, [packageId, push]);
+  }, [packageId, push, refreshTick]);
+
+  useEffect(() => {
+    if (phase.kind === "done") {
+      const t = setTimeout(() => {
+        setRefreshTick((n) => n + 1);
+        reset();
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+  }, [phase, reset]);
 
   if (loading && !pkg) {
     return (
@@ -250,6 +265,27 @@ export function SwarmDetailView({
   const totalPaid = legs.reduce((s, l) => s + l.agreedPaymentSol, 0);
   const totalDistance = legs.reduce((s, l) => s + l.distanceKm, 0);
   const completedCount = legs.filter((l) => l.status === "completed").length;
+
+  const viewerIsShipper =
+    !!publicKey && publicKey.toBase58() === pkg.shipperPubkey;
+  const activeConfirmLegId =
+    phase.kind !== "idle" && phase.kind !== "done" && phase.kind !== "error"
+      ? (phase as { legId?: string }).legId
+      : null;
+  const confirmInFlight =
+    phase.kind === "building" ||
+    phase.kind === "awaiting-signature" ||
+    phase.kind === "sending" ||
+    phase.kind === "confirming" ||
+    phase.kind === "persisting";
+  const phaseLabel: Record<string, string> = {
+    building: "BUILDING TX…",
+    "awaiting-signature": "AWAITING WALLET SIGNATURE…",
+    sending: "SENDING…",
+    confirming: "CONFIRMING ON-CHAIN…",
+    persisting: "PERSISTING…",
+    done: "CONFIRMED ✓",
+  };
 
   return (
     <div className="space-y-5 glitch-in">
@@ -475,6 +511,33 @@ export function SwarmDetailView({
                         LEG ACCT ▸ {leg.onChainLeg.slice(0, 6)}…
                       </a>
                     )}
+                    {viewerIsShipper &&
+                      leg.status === "pending" &&
+                      leg.onChainLeg &&
+                      swarm?.onChainSwarm &&
+                      pkg.onChainPackage && (
+                        <div className="mt-3 flex flex-col items-end gap-1">
+                          <button
+                            className="btn-primary"
+                            disabled={confirmInFlight}
+                            onClick={() =>
+                              confirm({
+                                legId: leg.id,
+                                courierPubkey: leg.agentPubkey,
+                              })
+                            }
+                          >
+                            {confirmInFlight && activeConfirmLegId === leg.id
+                              ? phaseLabel[phase.kind] ?? "WORKING…"
+                              : "CONFIRM DELIVERY"}
+                          </button>
+                          {phase.kind === "error" && (
+                            <span className="text-[9px] tracking-[0.12em] uppercase text-[var(--color-blood)] max-w-[240px] text-right">
+                              {phase.message.slice(0, 120)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                   </div>
                 </div>
               );
