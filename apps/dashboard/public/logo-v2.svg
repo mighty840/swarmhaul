@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- V2: FLOCK — 5 birds/arrows in V-formation, gradient, friendly modern -->
+  <defs>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6C5CE7"/>
+      <stop offset="50%" stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#00ff9c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Lead bird — largest -->
+  <path d="M320,196 L392,256 L320,316 L340,256 Z" fill="url(#g2)"/>
+
+  <!-- Upper wing pair -->
+  <path d="M232,140 L296,192 L232,244 L248,192 Z" fill="url(#g2)" opacity="0.8"/>
+  <path d="M160,96 L216,140 L160,184 L172,140 Z" fill="url(#g2)" opacity="0.55"/>
+
+  <!-- Lower wing pair -->
+  <path d="M232,268 L296,320 L232,372 L248,320 Z" fill="url(#g2)" opacity="0.8"/>
+  <path d="M160,328 L216,372 L160,416 L172,372 Z" fill="url(#g2)" opacity="0.55"/>
+</svg>
