@@ -23,7 +23,15 @@ export async function bidRoutes(app: FastifyInstance) {
 
   app.post(
     "/",
-    { schema: { body: BidCreateBody } },
+    {
+      schema: { body: BidCreateBody },
+      config: {
+        rateLimit: {
+          max: Number(process.env.BID_RATE_LIMIT_MAX ?? 20),
+          timeWindow: process.env.BID_RATE_LIMIT_WINDOW ?? "1 minute",
+        },
+      },
+    },
     async (req, reply) => {
       const body = req.body as BidBody;
 
