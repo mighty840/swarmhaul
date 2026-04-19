@@ -2,7 +2,7 @@
  * App factory: builds the Fastify instance without listening.
  * Used by both the production entrypoint (index.ts) and integration tests.
  */
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import websocket from "@fastify/websocket";
@@ -51,19 +51,23 @@ export async function buildApp(opts?: { logger?: boolean }) {
   // override via RATE_LIMIT_MAX / RATE_LIMIT_WINDOW env vars if a
   // specific deployment needs different behaviour (e.g. internal
   // stress benchmarks).
+  //
+  // /health and the WebSocket are allow-listed so Orca's liveness
+  // probe and long-lived dashboard sessions don't trip the limit.
+  // keyGenerator honours X-Forwarded-For for real client IPs behind
+  // the Orca proxy.
   await app.register(rateLimit, {
     global: true,
     max: Number(process.env.RATE_LIMIT_MAX ?? 120),
     timeWindow: process.env.RATE_LIMIT_WINDOW ?? "1 minute",
-    // Health, metrics and the WebSocket are exempt so Orca's liveness
-    // probe and long-lived dashboard sessions don't get throttled.
-    skip: (req) =>
+    allowList: (req: FastifyRequest): boolean =>
       req.url === "/health" ||
       req.url === "/ws" ||
       req.url.startsWith("/ws?"),
-    keyGenerator: (req) =>
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ??
-      req.ip,
+    keyGenerator: (req: FastifyRequest): string =>
+      (req.headers["x-forwarded-for"] as string | undefined)
+        ?.split(",")[0]
+        ?.trim() ?? req.ip,
   });
 
   await app.register(websocket);
