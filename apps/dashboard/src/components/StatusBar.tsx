@@ -61,7 +61,7 @@ export function StatusBar({
             aria-label="SwarmHaul — back to observatory"
           >
             <img
-              src="/logo-v2.svg"
+              src="/logo.svg"
               alt=""
               width={24}
               height={24}
