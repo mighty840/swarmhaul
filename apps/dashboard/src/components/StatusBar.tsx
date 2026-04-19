@@ -61,12 +61,12 @@ export function StatusBar({
             aria-label="SwarmHaul — back to observatory"
           >
             <img
-              src="/logo.svg"
+              src="/logo-v2.svg"
               alt=""
-              width={22}
-              height={22}
-              className="transition-[filter] duration-200 group-hover:[filter:drop-shadow(0_0_6px_rgba(0,255,156,0.55))]"
-              style={{ filter: "drop-shadow(0 0 4px rgba(0,255,156,0.35))" }}
+              width={24}
+              height={24}
+              className="transition-[filter] duration-200 group-hover:[filter:drop-shadow(0_0_6px_rgba(0,212,255,0.55))]"
+              style={{ filter: "drop-shadow(0 0 4px rgba(0,212,255,0.35))" }}
             />
             <span className="text-[15px] font-bold tracking-[0.04em] text-[var(--color-bone)]">
               SWARMHAUL
