@@ -48,14 +48,21 @@ function SliderRow({
 }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-1.5">
+      <div className="flex items-baseline justify-between mb-1.5 gap-2">
         <label className={labelClass}>{label}</label>
-        <div className="flex items-baseline gap-1">
-          <span
-            className={`tabular-nums font-mono text-[15px] font-semibold ${valueTextClass}`}
-          >
-            {value}
-          </span>
+        <div className="flex items-baseline gap-1.5">
+          <input
+            type="number"
+            value={value}
+            min={min}
+            step={step}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n)) onChange(n);
+            }}
+            // Hide native spinner arrows via CSS — class hides webkit + firefox
+            className={`no-spin bg-transparent border border-[var(--color-line-hot)] focus:border-[var(--color-phosphor)] outline-none px-2 py-0.5 text-right tabular-nums font-mono text-[15px] font-semibold w-20 ${valueTextClass}`}
+          />
           <span className="text-[10px] text-[var(--color-ash)] tracking-[0.14em] font-semibold">
             {unit}
           </span>
