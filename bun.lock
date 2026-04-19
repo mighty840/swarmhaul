@@ -14,6 +14,8 @@
       "dependencies": {
         "@solana/web3.js": "^1.98.0",
         "@swarmhaul/types": "workspace:*",
+        "bs58": "^6.0.0",
+        "tweetnacl": "^1.0.3",
         "zod": "^3.24.0",
       },
       "devDependencies": {
