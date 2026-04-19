@@ -223,6 +223,9 @@ export async function buildAssignLegIx(
 }
 
 export interface ConfirmLegArgs {
+  /** Shipper/consignee signing the acknowledgement of receipt. */
+  recipient: PublicKey;
+  /** Courier pubkey — non-signer payout destination. */
   courier: PublicKey;
   legAccount: PublicKey;
   swarmAccount: PublicKey;
@@ -239,6 +242,7 @@ export async function buildConfirmLegIx(
   return sdk.program.methods
     .confirmLeg()
     .accounts({
+      recipient: args.recipient,
       courier: args.courier,
       legAccount: args.legAccount,
       swarmAccount: args.swarmAccount,

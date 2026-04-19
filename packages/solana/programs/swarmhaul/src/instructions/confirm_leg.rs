@@ -5,15 +5,31 @@ use crate::state::{
 };
 use crate::instructions::form_swarm::SwarmError;
 
+// NOTE: recipient-signs model.
+// For single-leg swarms the recipient is the shipper (package.shipper must
+// equal signer). Multi-leg intermediate handoffs (recipient = next-hop
+// courier) are a protocol v2 concern — enforce single-leg here for now.
+//
+// The courier account is no longer a signer; it's a passive payout
+// destination that must match the leg's assigned courier. The program
+// signs the vault → courier transfer via the vault PDA, as before.
 #[derive(Accounts)]
 pub struct ConfirmLeg<'info> {
+    /// Shipper/consignee acknowledging receipt. Pays the tx fee.
     #[account(mut)]
-    pub courier: Signer<'info>,
+    pub recipient: Signer<'info>,
+
+    /// CHECK: payout destination. Must match leg_account.courier.
+    /// Not a signer — the courier is paid, not confirming.
+    #[account(
+        mut,
+        constraint = courier.key() == leg_account.courier @ SwarmError::NotAssignedCourier,
+    )]
+    pub courier: SystemAccount<'info>,
 
     #[account(
         mut,
         constraint = leg_account.swarm == swarm_account.key() @ SwarmError::InvalidPackageStatus,
-        constraint = leg_account.courier == courier.key() @ SwarmError::NotAssignedCourier,
         constraint = !leg_account.confirmed @ SwarmError::LegAlreadyConfirmed,
     )]
     pub leg_account: Account<'info, LegAccount>,
@@ -22,10 +38,15 @@ pub struct ConfirmLeg<'info> {
         mut,
         constraint = swarm_account.status == SwarmStatus::Active @ SwarmError::SwarmNotActive,
         constraint = swarm_account.package == package_account.key() @ SwarmError::InvalidPackageStatus,
+        // v1: single-leg swarms only — multi-leg handoff auth is TODO.
+        constraint = swarm_account.total_legs == 1 @ SwarmError::MultiLegNotSupported,
     )]
     pub swarm_account: Account<'info, SwarmAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = package_account.shipper == recipient.key() @ SwarmError::UnauthorizedRecipient,
+    )]
     pub package_account: Account<'info, PackageAccount>,
 
     /// CHECK: PDA vault holding escrow funds. Verified by seeds + stored bump.
@@ -36,9 +57,8 @@ pub struct ConfirmLeg<'info> {
     )]
     pub vault: SystemAccount<'info>,
 
-    /// Reputation PDA for the courier — must match the leg's bound courier (signer).
+    /// Reputation PDA for the courier.
     /// Mutated to bump legs_completed and recompute reliability_score.
-    /// Created on first assignment in assign_leg, so it always exists by confirm_leg time.
     #[account(
         mut,
         seeds = [b"reputation", courier.key().as_ref()],
@@ -86,7 +106,7 @@ pub fn handler(ctx: Context<ConfirmLeg>) -> Result<()> {
     rep.legs_completed = rep.legs_completed.checked_add(1).ok_or(SwarmError::Overflow)?;
     rep.recompute_score();
 
-    // PDA-signed transfer of the EXACT pre-stored amount
+    // PDA-signed transfer of the EXACT pre-stored amount to the courier
     let signer_seeds: &[&[&[u8]]] = &[&[b"vault", package_key.as_ref(), &[vault_bump]]];
 
     system_program::transfer(

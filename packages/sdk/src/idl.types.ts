@@ -158,9 +158,19 @@ export type Swarmhaul = {
       ],
       "accounts": [
         {
-          "name": "courier",
+          "name": "recipient",
+          "docs": [
+            "Shipper/consignee acknowledging receipt. Pays the tx fee."
+          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "courier",
+          "docs": [
+            "Not a signer — the courier is paid, not confirming."
+          ],
+          "writable": true
         },
         {
           "name": "legAccount",
@@ -199,9 +209,8 @@ export type Swarmhaul = {
         {
           "name": "courierReputation",
           "docs": [
-            "Reputation PDA for the courier — must match the leg's bound courier (signer).",
-            "Mutated to bump legs_completed and recompute reliability_score.",
-            "Created on first assignment in assign_leg, so it always exists by confirm_leg time."
+            "Reputation PDA for the courier.",
+            "Mutated to bump legs_completed and recompute reliability_score."
           ],
           "writable": true,
           "pda": {
@@ -507,6 +516,63 @@ export type Swarmhaul = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "updateVehicle",
+      "discriminator": [
+        114,
+        18,
+        182,
+        153,
+        74,
+        66,
+        126,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "vehicleProfile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "hourlyRateLamports",
+          "type": "u64"
+        },
+        {
+          "name": "bootVolumeLitres",
+          "type": "u16"
+        },
+        {
+          "name": "isAutonomous",
+          "type": "bool"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -653,6 +719,32 @@ export type Swarmhaul = {
         32,
         31,
         113
+      ]
+    },
+    {
+      "name": "vehicleRegistered",
+      "discriminator": [
+        60,
+        16,
+        188,
+        32,
+        69,
+        98,
+        134,
+        178
+      ]
+    },
+    {
+      "name": "vehicleUpdated",
+      "discriminator": [
+        138,
+        118,
+        179,
+        238,
+        9,
+        204,
+        85,
+        41
       ]
     }
   ],
@@ -1073,6 +1165,54 @@ export type Swarmhaul = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "vehicleRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "hourlyRateLamports",
+            "type": "u64"
+          },
+          {
+            "name": "bootVolumeLitres",
+            "type": "u16"
+          },
+          {
+            "name": "isAutonomous",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "vehicleUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "hourlyRateLamports",
+            "type": "u64"
+          },
+          {
+            "name": "bootVolumeLitres",
+            "type": "u16"
+          },
+          {
+            "name": "isAutonomous",
+            "type": "bool"
           }
         ]
       }
