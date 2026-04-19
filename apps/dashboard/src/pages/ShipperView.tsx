@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useCallback, useEffect, useState } from "react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Panel } from "../components/Panel.js";
+import { LocationPicker } from "../components/LocationPicker.js";
 import { useListPackage } from "../hooks/useListPackage.js";
 import { useErrorReporter } from "../components/ErrorBanner.js";
 
@@ -21,10 +23,72 @@ const PHASE_LABEL: Record<string, string> = {
   error: "ERROR",
 };
 
+function SliderRow({
+  label,
+  unit,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  valueTextClass = "text-[var(--color-bone)]",
+  labelClass = "label",
+  warning,
+}: {
+  label: string;
+  unit: string;
+  value: number;
+  onChange: (n: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  valueTextClass?: string;
+  labelClass?: string;
+  warning?: string | null;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <label className={labelClass}>{label}</label>
+        <div className="flex items-baseline gap-1">
+          <span
+            className={`tabular-nums font-mono text-[15px] font-semibold ${valueTextClass}`}
+          >
+            {value}
+          </span>
+          <span className="text-[10px] text-[var(--color-ash)] tracking-[0.14em] font-semibold">
+            {unit}
+          </span>
+        </div>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(+e.target.value)}
+        className="w-full accent-[var(--color-phosphor)]"
+      />
+      <div className="flex justify-between text-[9px] text-[var(--color-ash)] font-mono tabular-nums mt-0.5">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+      {warning && (
+        <div className="mt-1.5 text-[10px] text-[var(--color-blood)] tracking-[0.1em] uppercase font-bold">
+          ✕ {warning}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ShipperView() {
   const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
   const { dispatch, phase, reset } = useListPackage();
   const { push } = useErrorReporter();
+  const [balanceSol, setBalanceSol] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     description: "",
@@ -37,6 +101,31 @@ export function ShipperView() {
     destLng: 11.605,
   });
 
+  const refreshBalance = useCallback(async () => {
+    if (!connected || !publicKey) {
+      setBalanceSol(null);
+      return;
+    }
+    try {
+      const lamports = await connection.getBalance(publicKey, "confirmed");
+      setBalanceSol(lamports / LAMPORTS_PER_SOL);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      push(`Balance fetch failed: ${msg}`, "wallet");
+    }
+  }, [connected, publicKey, connection, push]);
+
+  useEffect(() => {
+    refreshBalance();
+    if (!connected) return;
+    const id = setInterval(refreshBalance, 15_000);
+    return () => clearInterval(id);
+  }, [connected, refreshBalance]);
+
+  useEffect(() => {
+    if (phase.kind === "done") refreshBalance();
+  }, [phase.kind, refreshBalance]);
+
   const submitting =
     phase.kind === "building" ||
     phase.kind === "awaiting-signature" ||
@@ -44,8 +133,17 @@ export function ShipperView() {
     phase.kind === "confirming" ||
     phase.kind === "persisting";
 
+  // Need a small SOL buffer for gas/rent even when budget equals balance.
+  // Flag if the shipper's locked-escrow cost alone would empty the wallet.
+  const overBudget =
+    balanceSol !== null && form.maxBudgetSol > balanceSol - 0.005;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (overBudget) {
+      push("Budget exceeds your wallet balance.", "dispatch");
+      return;
+    }
     const result = await dispatch(form);
     if (result) {
       setForm((f) => ({ ...f, description: "" }));
@@ -77,7 +175,7 @@ export function ShipperView() {
         meta={connected ? "READY TO DISPATCH" : "CONNECT TO PROCEED"}
       >
         <div className="p-4 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-5 min-w-0">
             {connected && publicKey ? (
               <>
                 <div className="dot-live" />
@@ -85,6 +183,15 @@ export function ShipperView() {
                   <div className="label-muted mb-0.5">SHIPPER PUBKEY</div>
                   <div className="pubkey text-[13px] text-[var(--color-bone)]">
                     {shortenPubkey(publicKey.toBase58())}
+                  </div>
+                </div>
+                <div className="pl-5 border-l border-[var(--color-line)]">
+                  <div className="label-muted mb-0.5">DEVNET BALANCE</div>
+                  <div className="text-[16px] font-light tabular-nums text-[var(--color-phosphor)]">
+                    {balanceSol === null ? "…" : balanceSol.toFixed(4)}{" "}
+                    <span className="text-[10px] text-[var(--color-ash)] font-semibold tracking-[0.14em]">
+                      SOL
+                    </span>
                   </div>
                 </div>
               </>
@@ -102,7 +209,7 @@ export function ShipperView() {
       </Panel>
 
       <Panel title="NEW DISPATCH ORDER" accent="magenta">
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        <form onSubmit={handleSubmit} className="p-5 space-y-6">
           <div>
             <label className="block label mb-2">PAYLOAD DESCRIPTION</label>
             <input
@@ -115,99 +222,80 @@ export function ShipperView() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block label mb-2">WEIGHT ── KG</label>
-              <input
-                type="number"
-                step="0.1"
-                value={form.weightKg}
-                onChange={(e) => setForm({ ...form, weightKg: +e.target.value })}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="block label mb-2">VOLUME ── L</label>
-              <input
-                type="number"
-                step="0.1"
-                value={form.volumeLitres}
-                onChange={(e) =>
-                  setForm({ ...form, volumeLitres: +e.target.value })
-                }
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="block label mb-2">BUDGET ── SOL</label>
-              <input
-                type="number"
-                step="0.01"
-                value={form.maxBudgetSol}
-                onChange={(e) =>
-                  setForm({ ...form, maxBudgetSol: +e.target.value })
-                }
-                className="input"
-              />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <SliderRow
+              label="WEIGHT"
+              unit="KG"
+              min={0.1}
+              max={50}
+              step={0.1}
+              value={form.weightKg}
+              onChange={(n) => setForm({ ...form, weightKg: n })}
+            />
+            <SliderRow
+              label="VOLUME"
+              unit="L"
+              min={1}
+              max={200}
+              step={1}
+              value={form.volumeLitres}
+              onChange={(n) => setForm({ ...form, volumeLitres: n })}
+            />
+            <SliderRow
+              label="BUDGET"
+              unit="SOL"
+              min={0.01}
+              max={Math.max(5, Math.ceil((balanceSol ?? 5) * 1.2))}
+              step={0.01}
+              value={form.maxBudgetSol}
+              onChange={(n) => setForm({ ...form, maxBudgetSol: n })}
+              valueTextClass={
+                overBudget
+                  ? "text-[var(--color-blood)]"
+                  : "text-[var(--color-bone)]"
+              }
+              labelClass={overBudget ? "label text-[var(--color-blood)]" : "label"}
+              warning={
+                overBudget && balanceSol !== null
+                  ? `Budget exceeds wallet balance of ${balanceSol.toFixed(4)} SOL`
+                  : null
+              }
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block label mb-2">ORIGIN ── LAT, LNG</label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  step="0.001"
-                  value={form.originLat}
-                  onChange={(e) =>
-                    setForm({ ...form, originLat: +e.target.value })
-                  }
-                  className="input"
-                />
-                <input
-                  type="number"
-                  step="0.001"
-                  value={form.originLng}
-                  onChange={(e) =>
-                    setForm({ ...form, originLng: +e.target.value })
-                  }
-                  className="input"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block label mb-2">DESTINATION ── LAT, LNG</label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  step="0.001"
-                  value={form.destLat}
-                  onChange={(e) => setForm({ ...form, destLat: +e.target.value })}
-                  className="input"
-                />
-                <input
-                  type="number"
-                  step="0.001"
-                  value={form.destLng}
-                  onChange={(e) => setForm({ ...form, destLng: +e.target.value })}
-                  className="input"
-                />
-              </div>
-            </div>
-          </div>
+          <LocationPicker
+            origin={{ lat: form.originLat, lng: form.originLng }}
+            destination={{ lat: form.destLat, lng: form.destLng }}
+            onChange={({ origin, destination }) =>
+              setForm((f) => ({
+                ...f,
+                originLat: origin.lat,
+                originLng: origin.lng,
+                destLat: destination.lat,
+                destLng: destination.lng,
+              }))
+            }
+          />
 
           <div className="flex items-center gap-4 pt-2 border-t border-[var(--color-line)]">
             <button
               type="submit"
-              disabled={submitting || !form.description || !connected}
+              disabled={
+                submitting || !form.description || !connected || overBudget
+              }
               className="btn-primary"
             >
               {submitting
                 ? PHASE_LABEL[phase.kind] ?? "WORKING…"
                 : "▸ DISPATCH ORDER"}
             </button>
-            <span className="text-[10px] text-[var(--color-steel)] tracking-[0.12em] uppercase font-semibold">
+            <span
+              className={`text-[10px] tracking-[0.12em] uppercase font-semibold ${
+                overBudget
+                  ? "text-[var(--color-blood)]"
+                  : "text-[var(--color-steel)]"
+              }`}
+            >
               {form.maxBudgetSol} SOL WILL BE LOCKED IN ESCROW PDA
             </span>
           </div>
