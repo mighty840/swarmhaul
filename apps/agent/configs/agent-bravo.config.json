@@ -1,7 +1,7 @@
 {
   "agentPubkey": "961WAsZTgPo8WGUfLum6fW4UqKbjYjUHLJ4SyuGyVvZy",
   "keypairPath": "/run/swarmhaul/agent.json",
-  "apiEndpoint": "http://api:3001",
+  "apiEndpoint": "https://api.swarmhaul.defited.com",
   "vehicle": {
     "carMake": "VW",
     "carModel": "Caddy",
@@ -18,8 +18,20 @@
     "autoAccept": true
   },
   "itinerary": [
-    { "location": { "lat": 48.15, "lng": 11.55 }, "eta": "2026-04-18T06:00:00Z" },
-    { "location": { "lat": 48.14, "lng": 11.59 }, "eta": "2026-04-18T07:00:00Z" }
+    {
+      "location": {
+        "lat": 48.15,
+        "lng": 11.55
+      },
+      "eta": "2026-04-18T06:00:00Z"
+    },
+    {
+      "location": {
+        "lat": 48.14,
+        "lng": 11.59
+      },
+      "eta": "2026-04-18T07:00:00Z"
+    }
   ],
   "llm": {
     "enabled": true,

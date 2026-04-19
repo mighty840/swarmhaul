@@ -1,7 +1,7 @@
 {
   "agentPubkey": "8ba9B9MouLb9QbAzvxcu3ob91zPy5eGA8y21QrraWHHw",
   "keypairPath": "/run/swarmhaul/agent.json",
-  "apiEndpoint": "http://api:3001",
+  "apiEndpoint": "https://api.swarmhaul.defited.com",
   "vehicle": {
     "carMake": "Mercedes",
     "carModel": "Sprinter",
@@ -18,8 +18,20 @@
     "autoAccept": true
   },
   "itinerary": [
-    { "location": { "lat": 48.165, "lng": 11.58 },  "eta": "2026-04-18T06:00:00Z" },
-    { "location": { "lat": 48.115, "lng": 11.595 }, "eta": "2026-04-18T07:00:00Z" }
+    {
+      "location": {
+        "lat": 48.165,
+        "lng": 11.58
+      },
+      "eta": "2026-04-18T06:00:00Z"
+    },
+    {
+      "location": {
+        "lat": 48.115,
+        "lng": 11.595
+      },
+      "eta": "2026-04-18T07:00:00Z"
+    }
   ],
   "llm": {
     "enabled": true,
