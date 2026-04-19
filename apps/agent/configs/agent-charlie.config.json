@@ -1,7 +1,7 @@
 {
   "agentPubkey": "8ba9B9MouLb9QbAzvxcu3ob91zPy5eGA8y21QrraWHHw",
   "keypairPath": "/run/swarmhaul/agent.json",
-  "apiEndpoint": "http://swarmhaul-api:3001",
+  "apiEndpoint": "http://api:3001",
   "vehicle": {
     "carMake": "Mercedes",
     "carModel": "Sprinter",

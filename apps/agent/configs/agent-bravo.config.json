@@ -1,7 +1,7 @@
 {
   "agentPubkey": "961WAsZTgPo8WGUfLum6fW4UqKbjYjUHLJ4SyuGyVvZy",
   "keypairPath": "/run/swarmhaul/agent.json",
-  "apiEndpoint": "http://swarmhaul-api:3001",
+  "apiEndpoint": "http://api:3001",
   "vehicle": {
     "carMake": "VW",
     "carModel": "Caddy",
