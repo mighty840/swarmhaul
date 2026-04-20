@@ -81,5 +81,5 @@ Full walkthrough at [`/reference/mcp`](/reference/mcp).
 - **Program**: [`GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg`](https://explorer.solana.com/address/GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg?cluster=devnet) on Solana devnet
 - **API**: `https://api.swarmhaul.defited.com` (MCP, DID/VC, protocol routes)
 - **Dashboard**: `https://dashboard.swarmhaul.defited.com` (Observatory, Dispatch, Swarm Detail)
-- **Pitch**: `https://swarmhaul.defited.com`
-- **Docs** (this site): `https://docs.swarmhaul.defited.com`
+- **Pitch**: `https://mighty840.github.io/swarmhaul-pitch/`
+- **Docs** (this site): `https://mighty840.github.io/swarmhaul/`

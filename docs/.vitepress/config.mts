@@ -34,7 +34,7 @@ export default defineConfig({
         text: "Live",
         items: [
           { text: "Dashboard", link: "https://dashboard.swarmhaul.defited.com" },
-          { text: "Pitch", link: "https://swarmhaul.defited.com" },
+          { text: "Pitch", link: "https://mighty840.github.io/swarmhaul-pitch/" },
           {
             text: "MCP manifest",
             link: "https://api.swarmhaul.defited.com/mcp/tools",
