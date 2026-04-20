@@ -1,21 +1,26 @@
-use anchor_lang::prelude::*;
-use anchor_lang::system_program;
+use crate::instructions::form_swarm::SwarmError;
 use crate::state::{
     AgentReputationAccount, LegAccount, PackageAccount, PackageStatus, SwarmAccount, SwarmStatus,
 };
-use crate::instructions::form_swarm::SwarmError;
+use anchor_lang::prelude::*;
+use anchor_lang::system_program;
 
-// NOTE: recipient-signs model.
-// For single-leg swarms the recipient is the shipper (package.shipper must
-// equal signer). Multi-leg intermediate handoffs (recipient = next-hop
-// courier) are a protocol v2 concern — enforce single-leg here for now.
+// Recipient-signs model (multi-leg aware).
 //
-// The courier account is no longer a signer; it's a passive payout
-// destination that must match the leg's assigned courier. The program
-// signs the vault → courier transfer via the vault PDA, as before.
+// - Final leg (leg_index == total_legs - 1): recipient MUST be
+//   package.shipper — the end-customer attesting physical receipt.
+// - Intermediate leg (leg_index < total_legs - 1): recipient MUST be
+//   the next hop's courier. The next-hop courier attests handoff by
+//   signing; they wouldn't sign if they hadn't received the package.
+//
+// Legs must be confirmed in strict index order. Enforced via
+// `leg_index == swarm.completed_legs` which, given completed_legs
+// starts at 0 and increments per confirm, implicitly requires every
+// prior leg to already be confirmed.
 #[derive(Accounts)]
 pub struct ConfirmLeg<'info> {
-    /// Shipper/consignee acknowledging receipt. Pays the tx fee.
+    /// Either package.shipper (final leg) or next_leg.courier
+    /// (intermediate leg). Pays the tx fee. Validated in handler.
     #[account(mut)]
     pub recipient: Signer<'info>,
 
@@ -31,22 +36,29 @@ pub struct ConfirmLeg<'info> {
         mut,
         constraint = leg_account.swarm == swarm_account.key() @ SwarmError::InvalidPackageStatus,
         constraint = !leg_account.confirmed @ SwarmError::LegAlreadyConfirmed,
+        constraint = leg_account.leg_index == swarm_account.completed_legs @ SwarmError::LegOutOfOrder,
     )]
     pub leg_account: Account<'info, LegAccount>,
+
+    /// Next leg in the relay chain. Required (Some) for intermediate
+    /// legs — used to identify the next-hop courier as the legitimate
+    /// recipient. Must be None for the final leg. Handler enforces
+    /// the present/absent rule; constraints below validate relationship
+    /// only when Some.
+    #[account(
+        constraint = next_leg_account.swarm == swarm_account.key() @ SwarmError::InvalidPackageStatus,
+        constraint = next_leg_account.leg_index == leg_account.leg_index + 1 @ SwarmError::LegOutOfOrder,
+    )]
+    pub next_leg_account: Option<Account<'info, LegAccount>>,
 
     #[account(
         mut,
         constraint = swarm_account.status == SwarmStatus::Active @ SwarmError::SwarmNotActive,
         constraint = swarm_account.package == package_account.key() @ SwarmError::InvalidPackageStatus,
-        // v1: single-leg swarms only — multi-leg handoff auth is TODO.
-        constraint = swarm_account.total_legs == 1 @ SwarmError::MultiLegNotSupported,
     )]
     pub swarm_account: Account<'info, SwarmAccount>,
 
-    #[account(
-        mut,
-        constraint = package_account.shipper == recipient.key() @ SwarmError::UnauthorizedRecipient,
-    )]
+    #[account(mut)]
     pub package_account: Account<'info, PackageAccount>,
 
     /// CHECK: PDA vault holding escrow funds. Verified by seeds + stored bump.
@@ -71,6 +83,31 @@ pub struct ConfirmLeg<'info> {
 }
 
 pub fn handler(ctx: Context<ConfirmLeg>) -> Result<()> {
+    let leg_index = ctx.accounts.leg_account.leg_index;
+    let total_legs = ctx.accounts.swarm_account.total_legs;
+    // total_legs > 0 is enforced at form_swarm, so the subtraction is safe.
+    let is_final_leg = leg_index == total_legs - 1;
+
+    let expected_recipient = if is_final_leg {
+        require!(
+            ctx.accounts.next_leg_account.is_none(),
+            SwarmError::UnexpectedNextLeg
+        );
+        ctx.accounts.package_account.shipper
+    } else {
+        let next = ctx
+            .accounts
+            .next_leg_account
+            .as_ref()
+            .ok_or(SwarmError::MissingNextLeg)?;
+        next.courier
+    };
+    require_keys_eq!(
+        ctx.accounts.recipient.key(),
+        expected_recipient,
+        SwarmError::UnauthorizedRecipient
+    );
+
     let payment = ctx.accounts.leg_account.payment_lamports;
     let package_key = ctx.accounts.package_account.key();
     let vault_bump = ctx.accounts.package_account.vault_bump;
@@ -103,7 +140,10 @@ pub fn handler(ctx: Context<ConfirmLeg>) -> Result<()> {
 
     // Reputation: bump legs_completed + recompute reliability_score
     let rep = &mut ctx.accounts.courier_reputation;
-    rep.legs_completed = rep.legs_completed.checked_add(1).ok_or(SwarmError::Overflow)?;
+    rep.legs_completed = rep
+        .legs_completed
+        .checked_add(1)
+        .ok_or(SwarmError::Overflow)?;
     rep.recompute_score();
 
     // PDA-signed transfer of the EXACT pre-stored amount to the courier

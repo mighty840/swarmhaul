@@ -94,20 +94,41 @@ If on-chain fails, the Swarm row is marked `failed` and the package reverts to `
 
 ## 5. Delivery + confirmation
 
-**v1 (current):** single-leg swarms only at the confirm boundary.
+**Confirmation model (multi-leg aware).**
 
-- Shipper (recipient) clicks **CONFIRM DELIVERY** in `SwarmDetailView` when the goods physically arrive.
-- Dashboard calls `POST /swarms/legs/:legId/build-confirm-tx` → API builds an unsigned `confirm_leg` tx with the shipper as fee payer + signer.
-- Phantom signs → dashboard broadcasts → waits for `confirmed`.
-- Dashboard POSTs the signature to `POST /swarms/legs/:legId/confirm`. API:
-  - Validates the authed wallet equals `package.shipperPubkey`.
+- Legs confirm in strict index order. The program enforces
+  `leg_index == swarm.completed_legs`, so leg `i+1` cannot confirm
+  until leg `i` has. Error: `LegOutOfOrder`.
+- **Final leg** (`leg_index == total_legs - 1`): the shipper signs
+  `confirm_leg`. `next_leg_account` must be `None`.
+- **Intermediate leg** (`leg_index < total_legs - 1`): the next-hop
+  courier signs `confirm_leg` — their signature is the handoff
+  attestation. `next_leg_account` is the `LegAccount` PDA for
+  `leg_index + 1`; the program checks `recipient == next_leg.courier`.
+- Errors: `MissingNextLeg`, `UnexpectedNextLeg`, `UnauthorizedRecipient`.
+
+Per-leg flow:
+
+- Whichever wallet is the legitimate recipient calls `POST /swarms/legs/:legId/build-confirm-tx`.
+  The API resolves who that is (shipper for the final leg, next-hop
+  courier otherwise), includes the next `LegAccount` PDA when relevant,
+  and returns an unsigned tx.
+- The recipient's signer (Phantom for shippers, the agent keypair for
+  intermediate couriers) signs → dashboard / agent broadcasts → waits
+  for `confirmed`.
+- Client POSTs the signature to `POST /swarms/legs/:legId/confirm`. API:
+  - Validates the authed wallet matches the expected recipient for
+    this leg's position.
   - Marks the leg `completed` in Postgres.
-  - If all legs in the swarm are completed, auto-calls `settle` on-chain with the coordinator keypair.
-- `settle` closes the swarm account, pays remaining vault funds to the shipper's wallet (surplus refund), marks package `delivered`.
+  - If all legs in the swarm are completed, auto-calls `settle`
+    on-chain with the coordinator keypair.
+- `settle` closes the swarm account, pays remaining vault funds to the
+  shipper's wallet (surplus refund), marks package `delivered`.
 
-On-chain, `confirm_leg` transfers `leg.agreedPaymentSol` directly from the vault to the courier's wallet via a PDA-signed system transfer. Reputation `legs_completed` bumps, `reliability_score` is recomputed to `floor(completed / accepted × 100)`.
-
-**v2 (week 3):** multi-leg handoff auth. The recipient for an intermediate leg is the next-hop courier (attesting they received the package from the previous hop); the final-leg recipient is the shipper. See `packages/solana/programs/swarmhaul/src/instructions/confirm_leg.rs` — the `total_legs == 1` constraint is the v1 guardrail.
+On-chain, `confirm_leg` transfers `leg.agreedPaymentSol` directly from
+the vault to the courier's wallet via a PDA-signed system transfer.
+Reputation `legs_completed` bumps, `reliability_score` is recomputed
+to `floor(completed / accepted × 100)`.
 
 ---
 
@@ -118,7 +139,7 @@ Package:   listed → swarm_forming → in_transit → delivered
                                              ↘ failed (on-chain error, retry path)
 Swarm:     forming → active → settled
                           ↘ failed
-Leg:       pending → completed
+Leg:       pending → completed (in strict legIndex order)
 ```
 
 Key invariants:
@@ -126,6 +147,7 @@ Key invariants:
 - A leg's `agreedPaymentSol` is locked at creation time — it does NOT recompute on settle.
 - The vault's lamport balance at `confirm_leg` time must cover `leg.payment_lamports`. Defense in depth: the program refuses the transfer if it doesn't.
 - `confirm_leg` marks the leg complete **before** the system transfer (CEI pattern).
+- Legs confirm in strict `legIndex` order. Out-of-order confirms are rejected on-chain with `LegOutOfOrder`.
 
 ---
 
