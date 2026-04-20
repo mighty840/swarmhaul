@@ -20,6 +20,7 @@ import { reputationModelRoutes } from "./routes/reputation-model.js";
 import { economyRoutes } from "./routes/economy.js";
 import { mcpRoutes } from "./routes/mcp.js";
 import { devRoutes } from "./routes/dev.js";
+import { didRoutes } from "./routes/did.js";
 import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
 
@@ -99,6 +100,7 @@ export async function buildApp(opts?: { logger?: boolean }) {
   await app.register(reputationModelRoutes, { prefix: "/reputation-model" });
   await app.register(economyRoutes, { prefix: "/economy" });
   await app.register(mcpRoutes, { prefix: "/mcp" });
+  await app.register(didRoutes, { prefix: "/did" });
 
   // Dev-only seeding routes. Must NEVER be enabled in production.
   if (process.env.DEV_ROUTES === "true") {
