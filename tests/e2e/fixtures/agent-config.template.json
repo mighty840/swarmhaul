@@ -1,0 +1,31 @@
+{
+  "agentPubkey": "__AGENT_PUBKEY__",
+  "keypairPath": "__KEYPAIR_PATH__",
+  "apiEndpoint": "http://localhost:3001",
+  "solanaRpcUrl": "http://127.0.0.1:8899",
+  "simTransitDelayMs": 10000,
+  "vehicle": {
+    "carMake": "__VEHICLE_MAKE__",
+    "carModel": "__VEHICLE_MODEL__",
+    "bootVolumeLitres": 400,
+    "fuelConsumptionLPer100km": 6.0,
+    "fuelCostEurPerLitre": 1.8,
+    "hourlyRateEur": 15,
+    "isAutonomous": false
+  },
+  "bidSettings": {
+    "maxDetourKm": 6.0,
+    "maxDetourMinutes": 25,
+    "minProfitMarginPct": 10,
+    "autoAccept": true
+  },
+  "itinerary": [
+    { "location": { "lat": 48.137, "lng": 11.575 }, "eta": "2026-04-17T18:00:00Z" },
+    { "location": { "lat": 48.155, "lng": 11.605 }, "eta": "2026-04-17T19:00:00Z" }
+  ],
+  "llm": {
+    "enabled": false,
+    "endpoint": "https://llm-dev.meghsakha.com",
+    "model": "gpt-oss-120b"
+  }
+}

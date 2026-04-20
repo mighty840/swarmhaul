@@ -5,6 +5,10 @@ dist/
 coverage/
 .playwright-mcp/
 
+# Playwright E2E artefacts
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+
 # Environment
 .env
 !.env.example
