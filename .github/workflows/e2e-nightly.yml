@@ -60,13 +60,17 @@ jobs:
       - name: Start stack (postgres + validator + API + agents + dashboard)
         run: ./tests/e2e/scripts/up.sh
 
+      - name: Install E2E deps
+        working-directory: tests/e2e
+        run: bun install --frozen-lockfile
+
       - name: Install Playwright browsers
         working-directory: tests/e2e
-        run: bunx playwright install --with-deps chromium
+        run: bun x playwright install --with-deps chromium
 
       - name: Run Playwright tests
         working-directory: tests/e2e
-        run: bunx playwright test
+        run: bun run test
         env:
           CI: "true"
           API_URL: http://localhost:3001
