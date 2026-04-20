@@ -351,6 +351,234 @@ describe("Reputation", () => {
   });
 });
 
+// ─── Swarms / multi-leg confirm auth ───────────────────────────────
+
+describe("POST /swarms/legs/:legId/confirm — multi-leg handoff auth", () => {
+  // Seeds one single-leg swarm and one 2-leg swarm directly via Prisma.
+  // The route's resolveExpectedRecipient helper is what we're exercising;
+  // the on-chain confirm_leg instruction is covered by Anchor tests.
+  let singleLegId: string;
+  let twoLegFirstId: string;
+  let twoLegSecondId: string;
+  const shipperPubkey = "shipper-multi-leg-seed";
+  const courier0Pubkey = "courier-zero-seed";
+  const courier1Pubkey = "courier-one-seed";
+
+  beforeAll(async () => {
+    const { prisma } = await import("../src/db/client.js");
+
+    const singleLegPkg = await prisma.package.create({
+      data: {
+        shipperPubkey,
+        originLat: 48.137,
+        originLng: 11.575,
+        destLat: 48.173,
+        destLng: 11.547,
+        description: "single-leg-seed",
+        weightKg: 1,
+        volumeLitres: 2,
+        maxBudgetSol: 0.1,
+        status: "swarm_forming",
+      },
+    });
+    const singleLegSwarm = await prisma.swarm.create({
+      data: {
+        packageId: singleLegPkg.id,
+        totalCostSol: 0.05,
+        status: "active",
+        legs: {
+          create: [
+            {
+              legIndex: 0,
+              agentPubkey: courier0Pubkey,
+              pickupLat: 48.137,
+              pickupLng: 11.575,
+              dropoffLat: 48.173,
+              dropoffLng: 11.547,
+              distanceKm: 5,
+              estimatedDurationMin: 15,
+              agreedPaymentSol: 0.05,
+              status: "pending",
+            },
+          ],
+        },
+      },
+      include: { legs: true },
+    });
+    singleLegId = singleLegSwarm.legs[0]!.id;
+
+    const twoLegPkg = await prisma.package.create({
+      data: {
+        shipperPubkey,
+        originLat: 48.0,
+        originLng: 11.0,
+        destLat: 48.5,
+        destLng: 11.5,
+        description: "two-leg-seed",
+        weightKg: 1,
+        volumeLitres: 2,
+        maxBudgetSol: 0.2,
+        status: "swarm_forming",
+      },
+    });
+    const twoLegSwarm = await prisma.swarm.create({
+      data: {
+        packageId: twoLegPkg.id,
+        totalCostSol: 0.1,
+        status: "active",
+        legs: {
+          create: [
+            {
+              legIndex: 0,
+              agentPubkey: courier0Pubkey,
+              pickupLat: 48.0,
+              pickupLng: 11.0,
+              dropoffLat: 48.25,
+              dropoffLng: 11.25,
+              distanceKm: 10,
+              estimatedDurationMin: 20,
+              agreedPaymentSol: 0.05,
+              status: "pending",
+            },
+            {
+              legIndex: 1,
+              agentPubkey: courier1Pubkey,
+              pickupLat: 48.25,
+              pickupLng: 11.25,
+              dropoffLat: 48.5,
+              dropoffLng: 11.5,
+              distanceKm: 10,
+              estimatedDurationMin: 20,
+              agreedPaymentSol: 0.05,
+              status: "pending",
+            },
+          ],
+        },
+      },
+      include: { legs: true },
+    });
+    twoLegFirstId = twoLegSwarm.legs.find((l) => l.legIndex === 0)!.id;
+    twoLegSecondId = twoLegSwarm.legs.find((l) => l.legIndex === 1)!.id;
+  });
+
+  it("single-leg: shipper confirms → 200", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/swarms/legs/${singleLegId}/confirm`,
+      payload: {
+        agentPubkey: courier0Pubkey,
+        recipientPubkey: shipperPubkey,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ success: true });
+  });
+
+  it("2-leg intermediate: next-hop courier confirms → 200", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/swarms/legs/${twoLegFirstId}/confirm`,
+      payload: {
+        agentPubkey: courier0Pubkey,
+        recipientPubkey: courier1Pubkey,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("2-leg intermediate: shipper-as-recipient rejected → 403", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/swarms/legs/${twoLegFirstId}/confirm`,
+      payload: {
+        agentPubkey: courier0Pubkey,
+        recipientPubkey: shipperPubkey,
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatch(/next-hop courier/);
+  });
+
+  it("2-leg final: shipper confirms → 200", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/swarms/legs/${twoLegSecondId}/confirm`,
+      payload: {
+        agentPubkey: courier1Pubkey,
+        recipientPubkey: shipperPubkey,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("2-leg final: intermediate-courier-as-recipient rejected → 403", async () => {
+    // Re-seed a fresh 2-leg so the prior success didn't already flip status.
+    const { prisma } = await import("../src/db/client.js");
+    const freshPkg = await prisma.package.create({
+      data: {
+        shipperPubkey,
+        originLat: 48.0,
+        originLng: 11.0,
+        destLat: 48.5,
+        destLng: 11.5,
+        description: "two-leg-seed-fresh",
+        weightKg: 1,
+        volumeLitres: 2,
+        maxBudgetSol: 0.2,
+        status: "swarm_forming",
+      },
+    });
+    const freshSwarm = await prisma.swarm.create({
+      data: {
+        packageId: freshPkg.id,
+        totalCostSol: 0.1,
+        status: "active",
+        legs: {
+          create: [
+            {
+              legIndex: 0,
+              agentPubkey: courier0Pubkey,
+              pickupLat: 48.0,
+              pickupLng: 11.0,
+              dropoffLat: 48.25,
+              dropoffLng: 11.25,
+              distanceKm: 10,
+              estimatedDurationMin: 20,
+              agreedPaymentSol: 0.05,
+              status: "pending",
+            },
+            {
+              legIndex: 1,
+              agentPubkey: courier1Pubkey,
+              pickupLat: 48.25,
+              pickupLng: 11.25,
+              dropoffLat: 48.5,
+              dropoffLng: 11.5,
+              distanceKm: 10,
+              estimatedDurationMin: 20,
+              agreedPaymentSol: 0.05,
+              status: "pending",
+            },
+          ],
+        },
+      },
+      include: { legs: true },
+    });
+    const finalLegId = freshSwarm.legs.find((l) => l.legIndex === 1)!.id;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/swarms/legs/${finalLegId}/confirm`,
+      payload: {
+        agentPubkey: courier1Pubkey,
+        recipientPubkey: courier0Pubkey,
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatch(/shipper/);
+  });
+});
+
 // ─── MCP ───────────────────────────────────────────────────────────
 
 describe("MCP", () => {

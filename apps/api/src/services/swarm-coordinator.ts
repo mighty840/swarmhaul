@@ -141,12 +141,17 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
       })),
     );
 
-    // Persist on-chain addresses + per-leg PDAs
+    // Persist on-chain addresses + per-leg PDAs. Once form_swarm +
+    // assign_leg land, on-chain `SwarmAccount.status` is `Active`, so
+    // the DB mirror should move from `forming` → `active` too. Without
+    // this the dashboard's second status pill is stuck on "forming"
+    // all the way until settle.
     await prisma.swarm.update({
       where: { id: swarm.id },
       data: {
         onChainSwarm: swarmPda.toBase58(),
         formSignature: signature,
+        status: "active",
       },
     });
 
@@ -199,7 +204,7 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
         totalCostSol: swarm.totalCostSol,
         escrowAccount: swarmPda.toBase58(),
         formedAt: swarm.formedAt,
-        status: "forming",
+        status: "active",
       },
     });
 
@@ -272,6 +277,7 @@ export async function confirmLegCompletion(
 
       const allComplete = swarm.legs.every((l) => l.status === "completed");
       const wasAlreadySettled = swarm.status === "settled";
+      let packageStatusChanged: "in_transit" | "delivered" | null = null;
 
       if (allComplete && !wasAlreadySettled) {
         await tx.swarm.update({
@@ -282,15 +288,40 @@ export async function confirmLegCompletion(
           where: { id: swarm.packageId },
           data: { status: "delivered", deliveredAt: new Date() },
         });
+        packageStatusChanged = "delivered";
+      } else if (swarm.package.status === "swarm_forming") {
+        // First confirm flips the DB mirror to match the on-chain
+        // package.status = InTransit transition that confirm_leg.rs
+        // performs. Without this the dashboard sits on "swarm_forming"
+        // all the way until the final leg confirms — masking multi-leg
+        // progress.
+        await tx.package.update({
+          where: { id: swarm.packageId },
+          data: { status: "in_transit" },
+        });
+        packageStatusChanged = "in_transit";
       }
 
-      return { leg: updatedLeg, swarm, allComplete: allComplete && !wasAlreadySettled };
+      return {
+        leg: updatedLeg,
+        swarm,
+        allComplete: allComplete && !wasAlreadySettled,
+        packageStatusChanged,
+      };
     },
     { isolationLevel: "Serializable", timeout: 10_000 },
   );
 
   if (!result) return;
-  const { leg, swarm, allComplete } = result;
+  const { leg, swarm, allComplete, packageStatusChanged } = result;
+
+  if (packageStatusChanged) {
+    broadcast({
+      type: "PACKAGE_STATUS_CHANGED",
+      packageId: swarm.packageId,
+      status: packageStatusChanged,
+    });
+  }
 
   // Mirror on-chain reputation to Postgres — confirm_leg bumped legsCompleted
   try {

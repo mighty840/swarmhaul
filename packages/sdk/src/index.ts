@@ -223,13 +223,23 @@ export async function buildAssignLegIx(
 }
 
 export interface ConfirmLegArgs {
-  /** Shipper/consignee signing the acknowledgement of receipt. */
+  /**
+   * The signer attesting receipt. For the final leg this is the
+   * package shipper; for intermediate legs this is the next-hop
+   * courier (matches `nextLegAccount.courier` on-chain).
+   */
   recipient: PublicKey;
   /** Courier pubkey — non-signer payout destination. */
   courier: PublicKey;
   legAccount: PublicKey;
   swarmAccount: PublicKey;
   packageAccount: PublicKey;
+  /**
+   * LegAccount PDA of the next leg in the relay chain. Required for
+   * intermediate legs, must be `null` for the final leg. The program
+   * rejects mismatches (MissingNextLeg / UnexpectedNextLeg).
+   */
+  nextLegAccount?: PublicKey | null;
 }
 
 export async function buildConfirmLegIx(
@@ -245,6 +255,7 @@ export async function buildConfirmLegIx(
       recipient: args.recipient,
       courier: args.courier,
       legAccount: args.legAccount,
+      nextLegAccount: args.nextLegAccount ?? null,
       swarmAccount: args.swarmAccount,
       packageAccount: args.packageAccount,
       vault: vPda,

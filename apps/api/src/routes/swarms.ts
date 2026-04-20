@@ -17,6 +17,50 @@ type LegParams = z.infer<typeof LegIdParam>;
 type LegBody = z.infer<typeof LegConfirmBody>;
 type LegBuildConfirmBody = z.infer<typeof LegBuildConfirmTxBody>;
 
+interface LegWithChain {
+  legIndex: number;
+  swarm: {
+    legs: Array<{ legIndex: number; agentPubkey: string; onChainLeg: string | null }>;
+    package: { shipperPubkey: string };
+  };
+}
+
+type RecipientResolution =
+  | {
+      pubkey: string;
+      nextLegOnChain: string | null;
+      forbiddenMsg: string;
+    }
+  | { error: string; status: number };
+
+// Multi-leg handoff auth: for the final leg (legIndex === totalLegs - 1),
+// the legitimate recipient is the package shipper. For every earlier
+// leg, the legitimate recipient is the *next* leg's assigned courier
+// (the next-hop agent attests handoff by signing).
+function resolveExpectedRecipient(leg: LegWithChain): RecipientResolution {
+  const totalLegs = leg.swarm.legs.length;
+  const isFinalLeg = leg.legIndex === totalLegs - 1;
+  if (isFinalLeg) {
+    return {
+      pubkey: leg.swarm.package.shipperPubkey,
+      nextLegOnChain: null,
+      forbiddenMsg: "Only the shipper can confirm the final leg",
+    };
+  }
+  const nextLeg = leg.swarm.legs.find((l) => l.legIndex === leg.legIndex + 1);
+  if (!nextLeg) {
+    return {
+      error: `Swarm is missing leg ${leg.legIndex + 1} — cannot confirm intermediate handoff`,
+      status: 409,
+    };
+  }
+  return {
+    pubkey: nextLeg.agentPubkey,
+    nextLegOnChain: nextLeg.onChainLeg,
+    forbiddenMsg: "Only the next-hop courier can confirm an intermediate leg",
+  };
+}
+
 export async function swarmRoutes(app: FastifyInstance) {
   app.get(
     "/:id",
@@ -44,9 +88,9 @@ export async function swarmRoutes(app: FastifyInstance) {
     },
   );
 
-  // Mirror: shipper/recipient confirms delivery after signing
-  // confirm_leg on-chain. `body.agentPubkey` still identifies the
-  // courier who earned the payout — it's passed through to the
+  // Mirror: shipper or next-hop courier confirms delivery after
+  // signing confirm_leg on-chain. `body.agentPubkey` still identifies
+  // the courier who earned the payout — it's passed through to the
   // reputation-bump logic, not used for auth.
   app.post(
     "/legs/:legId/confirm",
@@ -57,24 +101,19 @@ export async function swarmRoutes(app: FastifyInstance) {
 
       const leg = await prisma.leg.findUnique({
         where: { id: legId },
-        include: { swarm: { include: { package: true } } },
+        include: { swarm: { include: { package: true, legs: true } } },
       });
       if (!leg) return reply.code(404).send({ error: "Leg not found" });
       if (leg.status === "completed")
         return reply.code(400).send({ error: "Already completed" });
 
-      const shipperPubkey = leg.swarm.package.shipperPubkey;
+      const expected = resolveExpectedRecipient(leg);
+      if ("error" in expected) return reply.code(expected.status).send({ error: expected.error });
 
-      // Authed mode: signer must be the package's shipper (recipient).
-      // Demo-unauthed mode: trust body.recipientPubkey if provided, else
-      // fall back to shipperPubkey equality on body.agentPubkey (legacy
-      // shape — old clients won't carry recipientPubkey).
       const claimedRecipient =
-        req.authedPubkey ?? body.recipientPubkey ?? shipperPubkey;
-      if (claimedRecipient !== shipperPubkey)
-        return reply.code(403).send({
-          error: "Only the shipper can confirm delivery for this leg",
-        });
+        req.authedPubkey ?? body.recipientPubkey ?? expected.pubkey;
+      if (claimedRecipient !== expected.pubkey)
+        return reply.code(403).send({ error: expected.forbiddenMsg });
 
       if (leg.agentPubkey !== body.agentPubkey)
         return reply.code(400).send({
@@ -86,7 +125,7 @@ export async function swarmRoutes(app: FastifyInstance) {
     },
   );
 
-  // Build unsigned confirm_leg tx for the shipper's wallet to sign.
+  // Build unsigned confirm_leg tx for the recipient's wallet to sign.
   // We don't touch the DB here — persistence happens in the mirror
   // endpoint above once the tx lands on chain.
   app.post(
@@ -98,7 +137,7 @@ export async function swarmRoutes(app: FastifyInstance) {
 
       const leg = await prisma.leg.findUnique({
         where: { id: legId },
-        include: { swarm: { include: { package: true } } },
+        include: { swarm: { include: { package: true, legs: true } } },
       });
       if (!leg) return reply.code(404).send({ error: "Leg not found" });
       if (leg.status === "completed")
@@ -109,10 +148,10 @@ export async function swarmRoutes(app: FastifyInstance) {
         return reply.code(403).send({
           error: "recipientPubkey must match authed wallet",
         });
-      if (body.recipientPubkey !== pkg.shipperPubkey)
-        return reply.code(403).send({
-          error: "Only the shipper can confirm delivery for this leg",
-        });
+      const expected = resolveExpectedRecipient(leg);
+      if ("error" in expected) return reply.code(expected.status).send({ error: expected.error });
+      if (body.recipientPubkey !== expected.pubkey)
+        return reply.code(403).send({ error: expected.forbiddenMsg });
       if (!leg.onChainLeg || !leg.swarm.onChainSwarm || !pkg.onChainPackage)
         return reply.code(409).send({
           error: "Leg has no on-chain accounts yet — swarm still forming",
@@ -125,6 +164,9 @@ export async function swarmRoutes(app: FastifyInstance) {
           recipient,
           courier: new PublicKey(leg.agentPubkey),
           legAccount: new PublicKey(leg.onChainLeg),
+          nextLegAccount: expected.nextLegOnChain
+            ? new PublicKey(expected.nextLegOnChain)
+            : null,
           swarmAccount: new PublicKey(leg.swarm.onChainSwarm),
           packageAccount: new PublicKey(pkg.onChainPackage),
         });

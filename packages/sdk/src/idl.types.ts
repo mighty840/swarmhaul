@@ -160,7 +160,8 @@ export type Swarmhaul = {
         {
           "name": "recipient",
           "docs": [
-            "Shipper/consignee acknowledging receipt. Pays the tx fee."
+            "Either package.shipper (final leg) or next_leg.courier",
+            "(intermediate leg). Pays the tx fee. Validated in handler."
           ],
           "writable": true,
           "signer": true
@@ -175,6 +176,17 @@ export type Swarmhaul = {
         {
           "name": "legAccount",
           "writable": true
+        },
+        {
+          "name": "nextLegAccount",
+          "docs": [
+            "Next leg in the relay chain. Required (Some) for intermediate",
+            "legs — used to identify the next-hop courier as the legitimate",
+            "recipient. Must be None for the final leg. Handler enforces",
+            "the present/absent rule; constraints below validate relationship",
+            "only when Some."
+          ],
+          "optional": true
         },
         {
           "name": "swarmAccount",

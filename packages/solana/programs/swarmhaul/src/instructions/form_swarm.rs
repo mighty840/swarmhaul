@@ -1,5 +1,5 @@
-use anchor_lang::prelude::*;
 use crate::state::{PackageAccount, PackageStatus, SwarmAccount, SwarmStatus};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct FormSwarm<'info> {
@@ -25,11 +25,7 @@ pub struct FormSwarm<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(
-    ctx: Context<FormSwarm>,
-    total_legs: u8,
-    total_lamports: u64,
-) -> Result<()> {
+pub fn handler(ctx: Context<FormSwarm>, total_legs: u8, total_lamports: u64) -> Result<()> {
     require!(total_legs > 0, SwarmError::ZeroLegs);
     require!(
         total_lamports <= ctx.accounts.package_account.max_budget_lamports,
@@ -99,6 +95,10 @@ pub enum SwarmError {
     Overflow,
     #[msg("Signer is not the shipper/recipient authorized to confirm delivery")]
     UnauthorizedRecipient,
-    #[msg("Multi-leg confirm is not yet supported — v1 accepts single-leg swarms only")]
-    MultiLegNotSupported,
+    #[msg("Legs must be confirmed in strict index order — a prior leg is still pending")]
+    LegOutOfOrder,
+    #[msg("Intermediate leg confirm requires next_leg_account to identify the next-hop courier")]
+    MissingNextLeg,
+    #[msg("Final leg confirm must not supply next_leg_account — there is no next hop")]
+    UnexpectedNextLeg,
 }
