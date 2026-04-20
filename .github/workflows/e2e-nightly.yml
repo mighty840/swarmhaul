@@ -1,0 +1,99 @@
+name: E2E Nightly
+
+# Runs the full Playwright suite against a freshly-provisioned local
+# stack (postgres + validator + API + agents + dashboard). Catches the
+# integration regressions that the fast CI suite can't — specifically
+# the agent execution loop + DB mirror + UI lifecycle timeline.
+
+on:
+  schedule:
+    # 03:00 UTC every day. Quiet time for devs but after Orca deploys.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  # Also run on PRs that touch the protocol or agent code, so we don't
+  # ship regressions untested for a whole day.
+  pull_request:
+    paths:
+      - "packages/solana/**"
+      - "apps/agent/**"
+      - "apps/api/src/routes/swarms.ts"
+      - "apps/api/src/routes/dev.ts"
+      - "apps/api/src/services/swarm-coordinator.ts"
+      - "apps/dashboard/src/pages/SwarmDetailView.tsx"
+      - "tests/e2e/**"
+      - ".github/workflows/e2e-nightly.yml"
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.12
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor CLI
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked
+
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema=apps/api/src/db/schema.prisma
+
+      - name: Build anchor program (produces target/deploy/swarmhaul.so)
+        run: |
+          cd packages/solana
+          anchor build
+
+      - name: Generate E2E keypair + agent fixtures
+        run: ./tests/e2e/scripts/mkfixtures.sh
+
+      - name: Start stack (postgres + validator + API + agents + dashboard)
+        run: ./tests/e2e/scripts/up.sh
+
+      - name: Install E2E deps
+        working-directory: tests/e2e
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: tests/e2e
+        run: bun x playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        working-directory: tests/e2e
+        run: bun run test
+        env:
+          CI: "true"
+          API_URL: http://localhost:3001
+          DASHBOARD_URL: http://localhost:5173
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+          retention-days: 7
+
+      - name: Upload stack logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-logs
+          path: |
+            /tmp/swarmhaul-e2e-*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down stack
+        if: always()
+        run: ./tests/e2e/scripts/down.sh
