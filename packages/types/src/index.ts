@@ -127,6 +127,7 @@ export type WSEvent =
   | { type: "SWARM_FORMED"; swarm: Swarm }
   | { type: "LEG_STARTED"; leg: Leg }
   | { type: "LEG_COMPLETED"; leg: Leg }
+  | { type: "PACKAGE_STATUS_CHANGED"; packageId: string; status: "in_transit" | "delivered" }
   | { type: "PACKAGE_DELIVERED"; packageId: string }
   | { type: "VEHICLE_LOCATION"; pubkey: string; location: LatLng }
   | { type: "REPUTATION_UPDATED"; reputation: AgentReputation };

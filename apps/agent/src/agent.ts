@@ -1,10 +1,16 @@
 import bs58 from "bs58";
+import { Connection } from "@solana/web3.js";
 import { loadConfig } from "./config.js";
 import { loadKeypair } from "./wallet.js";
 import { computeOptimalLeg, detourExceedsLimit } from "./itinerary.js";
 import { computeCost } from "./bidder.js";
 import { reasonAboutBid } from "./reasoning.js";
 import { buildAuthHeaders, canonicalPath } from "./signed-fetch.js";
+import {
+  createExecutorState,
+  runExecutorPass,
+  type ExecutorPackage,
+} from "./executor.js";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -29,10 +35,33 @@ async function main() {
   }
   console.log(`[SwarmHaul Agent] API: ${config.apiEndpoint}`);
 
+  const rpcUrl =
+    config.solanaRpcUrl ??
+    process.env.SOLANA_RPC_URL ??
+    "https://api.devnet.solana.com";
+  const connection = new Connection(rpcUrl, "confirmed");
+  const executorState = createExecutorState();
+  console.log(`[SwarmHaul Agent] Solana RPC: ${rpcUrl}`);
+  console.log(
+    `[SwarmHaul Agent] Simulated transit delay: ${config.simTransitDelayMs} ms`,
+  );
+
   while (true) {
     try {
       const res = await fetch(`${config.apiEndpoint}/packages`);
       const openPackages = await res.json();
+
+      // Execution loop: sign handoff attestations for any leg whose
+      // previous-hop courier has dropped to this agent. Runs on every
+      // poll using the same /packages snapshot as the bid loop.
+      await runExecutorPass({
+        packages: openPackages as ExecutorPackage[],
+        config,
+        keypair,
+        connection,
+        agentPubkey,
+        state: executorState,
+      });
 
       for (const pkg of openPackages) {
         if (pkg.status !== "listed") continue;

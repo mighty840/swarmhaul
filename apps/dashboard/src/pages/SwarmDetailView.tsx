@@ -91,6 +91,132 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+// Lifecycle phases shown as a horizontal progression strip. Derived
+// entirely from package.status + per-leg status; no extra API calls.
+type PhaseKey = "listed" | "swarm_formed" | "in_transit" | "delivered" | "failed";
+
+interface Phase {
+  key: PhaseKey;
+  label: string;
+  reached: boolean;
+  current: boolean;
+}
+
+function deriveLifecyclePhases(
+  pkgStatus: string,
+  swarmStatus: string | null | undefined,
+  completedLegs: number,
+  totalLegs: number,
+): Phase[] {
+  // Map canonical pkg status → lifecycle index (0..3). `failed` is a
+  // terminal sidestream we render in red.
+  let currentIdx: number;
+  switch (pkgStatus) {
+    case "listed":
+      currentIdx = swarmStatus === "forming" || swarmStatus === "active" ? 1 : 0;
+      break;
+    case "swarm_forming":
+      currentIdx = 1;
+      break;
+    case "in_transit":
+      currentIdx = 2;
+      break;
+    case "delivered":
+      currentIdx = 3;
+      break;
+    case "failed":
+      return [
+        { key: "failed", label: "FAILED", reached: true, current: true },
+      ];
+    default:
+      currentIdx = 0;
+  }
+
+  // Mid-delivery hint: once any leg has confirmed but not all, treat
+  // the phase as IN TRANSIT even if the DB mirror hasn't caught up.
+  if (currentIdx === 1 && totalLegs > 0 && completedLegs > 0 && completedLegs < totalLegs) {
+    currentIdx = 2;
+  }
+
+  const phases: Array<Omit<Phase, "reached" | "current">> = [
+    { key: "listed", label: "LISTED" },
+    { key: "swarm_formed", label: "SWARM FORMED" },
+    { key: "in_transit", label: "IN TRANSIT" },
+    { key: "delivered", label: "DELIVERED" },
+  ];
+  return phases.map((p, idx) => ({
+    ...p,
+    reached: idx <= currentIdx,
+    current: idx === currentIdx,
+  }));
+}
+
+function LifecycleTimeline({ phases }: { phases: Phase[] }) {
+  if (phases.length === 1 && phases[0].key === "failed") {
+    return (
+      <div className="mt-3 flex items-center gap-2 text-[10px] tracking-[0.16em] font-semibold uppercase text-[var(--color-blood)]">
+        <span
+          className="w-2 h-2 rounded-full"
+          style={{
+            backgroundColor: "var(--color-blood)",
+            boxShadow: "0 0 6px var(--color-blood)",
+          }}
+        />
+        LIFECYCLE ▸ FAILED
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-4 flex items-center gap-0 flex-wrap"
+      aria-label="Swarm lifecycle"
+    >
+      {phases.map((p, idx) => {
+        const dotColor = p.current
+          ? "var(--color-cyan)"
+          : p.reached
+            ? "var(--color-phosphor)"
+            : "var(--color-faint)";
+        const textColor = p.current
+          ? "var(--color-bone)"
+          : p.reached
+            ? "var(--color-steel)"
+            : "var(--color-faint)";
+        return (
+          <div key={p.key} className="flex items-center">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor: dotColor,
+                  boxShadow: p.current ? `0 0 8px ${dotColor}` : "none",
+                }}
+              />
+              <span
+                className="text-[9px] tracking-[0.18em] font-semibold uppercase"
+                style={{ color: textColor }}
+              >
+                {p.label}
+              </span>
+            </div>
+            {idx < phases.length - 1 && (
+              <span
+                className="mx-2 h-px w-6"
+                style={{
+                  backgroundColor: phases[idx + 1].reached
+                    ? "var(--color-phosphor)"
+                    : "var(--color-faint)",
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MiniMap({ pkg, legs }: { pkg: RawPackage; legs: RawLeg[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -325,6 +451,14 @@ export function SwarmDetailView({
               </a>
             )}
           </div>
+          <LifecycleTimeline
+            phases={deriveLifecyclePhases(
+              pkg.status,
+              swarm?.status,
+              completedCount,
+              legs.length,
+            )}
+          />
         </div>
         <div className="text-right shrink-0">
           <div className="label mb-1">BUDGET</div>

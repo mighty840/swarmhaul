@@ -23,6 +23,20 @@ const ConfigSchema = z.object({
   agentPubkey: z.string(),
   keypairPath: z.string(),
   apiEndpoint: z.string().url(),
+  /**
+   * Solana RPC the agent submits its own transactions to (currently only
+   * the intermediate-hop `confirm_leg` from the execution loop). Falls
+   * back to the `SOLANA_RPC_URL` env var, then to devnet. Set this to
+   * `http://127.0.0.1:8899` when running against a local test validator.
+   */
+  solanaRpcUrl: z.string().url().optional(),
+  /**
+   * Simulated transit delay between detecting a ready-to-attest handoff
+   * and signing `confirm_leg` for it. Keeps the demo visible without
+   * making the agent appear to instantly teleport the package. Defaults
+   * to 15 s.
+   */
+  simTransitDelayMs: z.number().int().nonnegative().default(15_000),
   vehicle: VehicleSchema,
   bidSettings: BidSettingsSchema,
   itinerary: z
