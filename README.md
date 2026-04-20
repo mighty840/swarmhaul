@@ -117,14 +117,23 @@ bun run test
 
 SwarmHaul exposes the entire protocol as a Model Context Protocol server. Any AI agent — Claude Desktop, Cursor, Codex, your own — can plug in and start participating.
 
+The live devnet server is reachable without running anything locally:
+
+```
+https://api.swarmhaul.defited.com/mcp
+```
+
+Full integration guide with Claude Desktop + curl examples lives at
+[`docs/reference/mcp.md`](docs/reference/mcp.md).
+
 ### HTTP transport (running API)
 
 ```bash
-# Discover the tool manifest
-curl http://localhost:3001/mcp/tools
+# Discover the tool manifest (live)
+curl https://api.swarmhaul.defited.com/mcp/tools
 
-# Call a tool
-curl -X POST http://localhost:3001/mcp/call \
+# Call a tool (live)
+curl -X POST https://api.swarmhaul.defited.com/mcp/call \
   -H 'Content-Type: application/json' \
   -d '{"tool":"swarmhaul_economy_stats","arguments":{}}'
 ```

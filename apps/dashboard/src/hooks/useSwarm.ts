@@ -45,7 +45,14 @@ export function useSwarmData() {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [leaderboard, setLeaderboard] = useState<AgentReputation[]>([]);
   const [wsEvents, setWsEvents] = useState<WSEvent[]>([]);
+  // `connected` drives the status-bar badge. It reflects HTTP health
+  // rather than WS state — if our polling fetches succeed we're
+  // demonstrably online, regardless of whether the reverse proxy
+  // happens to be mangling WebSocket upgrades. `wsLive` is kept
+  // separate for the live-events ticker, which genuinely needs the
+  // socket.
   const [connected, setConnected] = useState(false);
+  const [, setWsLive] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -56,11 +63,14 @@ export function useSwarmData() {
         fetch(`${API_URL}/economy/activity`),
         fetch(`${API_URL}/reputation/leaderboard`),
       ]);
+      if (!statsRes.ok) throw new Error(`stats ${statsRes.status}`);
       setPackages(await pkgRes.json());
       setStats(await statsRes.json());
       setActivity(await actRes.json());
       setLeaderboard(await lbRes.json());
+      setConnected(true);
     } catch (err) {
+      setConnected(false);
       console.error("Fetch error:", err);
     }
   }, []);
@@ -80,9 +90,9 @@ export function useSwarmData() {
       const ws = new WebSocket(`${WS_URL}/ws`);
       wsRef.current = ws;
 
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => setWsLive(true);
       ws.onclose = () => {
-        setConnected(false);
+        setWsLive(false);
         if (cancelled) return;
         reconnectTimer = setTimeout(connect, 3000);
       };
