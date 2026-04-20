@@ -1,0 +1,135 @@
+/*
+ * SwarmHaul brand — ported from swarmhaul-pitch/src/styles/global.css.
+ * Phosphor green is the primary accent, cyan is secondary.
+ * JetBrains Mono everywhere (fonts pulled lazily from Google Fonts).
+ */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,200..800;1,200..800&family=Instrument+Serif:ital@0;1&display=swap");
+
+:root {
+  /* Brand palette */
+  --sh-void: #06060a;
+  --sh-graphite: #0c0c12;
+  --sh-elevated: #11111a;
+  --sh-line: #1f1f2c;
+  --sh-line-hot: #2c2c3c;
+  --sh-bone: #f4f4f1;
+  --sh-steel: #c8c8d0;
+  --sh-ash: #9898a5;
+  --sh-dim: #6a6a7a;
+  --sh-faint: #3a3a48;
+  --sh-phosphor: #00ff9c;
+  --sh-magenta: #ff2d8a;
+  --sh-amber: #ffb800;
+  --sh-cyan: #00d4ff;
+  --sh-purple: #6C5CE7;
+
+  /* VitePress theme overrides — dark-first */
+  --vp-font-family-base: "JetBrains Mono", ui-monospace, monospace;
+  --vp-font-family-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --vp-c-brand-1: var(--sh-phosphor);
+  --vp-c-brand-2: var(--sh-phosphor);
+  --vp-c-brand-3: var(--sh-phosphor);
+  --vp-c-brand-soft: rgba(0, 255, 156, 0.14);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    #6C5CE7 0%,
+    #00d4ff 50%,
+    #00ff9c 100%
+  );
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    #6C5CE744 40%,
+    #00d4ff33 70%,
+    #00ff9c44 100%
+  );
+  --vp-home-hero-image-filter: blur(48px);
+}
+
+.dark {
+  --vp-c-bg: var(--sh-void);
+  --vp-c-bg-alt: var(--sh-graphite);
+  --vp-c-bg-elv: var(--sh-elevated);
+  --vp-c-bg-soft: var(--sh-graphite);
+
+  --vp-c-divider: var(--sh-line);
+  --vp-c-gutter: var(--sh-line);
+  --vp-c-border: var(--sh-line);
+
+  --vp-c-text-1: var(--sh-bone);
+  --vp-c-text-2: var(--sh-steel);
+  --vp-c-text-3: var(--sh-ash);
+
+  --vp-code-block-bg: #08080c;
+  --vp-code-line-highlight-color: rgba(0, 255, 156, 0.08);
+}
+
+/*
+ * Subtle ambient glow pulled from the pitch site — phosphor top-left,
+ * magenta bottom-right. Pure decoration, non-interactive.
+ */
+body {
+  background-image:
+    radial-gradient(ellipse at top left, rgba(0, 255, 156, 0.05), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(255, 45, 138, 0.04), transparent 50%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(0, 255, 156, 0.22);
+  color: var(--sh-bone);
+}
+
+/* Tighten the hero name's leading + tracking to feel closer to the pitch. */
+.VPHero .name {
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+
+/* Home-layout actions should look like the pitch's btn-primary. */
+.VPButton.brand {
+  background: var(--sh-phosphor);
+  color: #06060a !important;
+  border-color: var(--sh-phosphor);
+}
+.VPButton.brand:hover {
+  background: #33ffb0;
+  border-color: #33ffb0;
+}
+
+/* Feature cards */
+.VPFeature {
+  border: 1px solid var(--sh-line);
+  background: var(--sh-graphite);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.dark .VPFeature:hover {
+  border-color: var(--sh-phosphor);
+  background: var(--sh-elevated);
+}
+
+/* Navbar + sidebar */
+.VPNavBar {
+  border-bottom: 1px solid var(--sh-line);
+  backdrop-filter: blur(6px);
+}
+.VPSidebar {
+  border-right: 1px solid var(--sh-line);
+}
+
+/* Code blocks — a hair brighter than the chrome so they pop */
+.vp-doc div[class*="language-"] {
+  border: 1px solid var(--sh-line);
+}
+
+/* Links inside prose: phosphor, underlined on hover only */
+.vp-doc a {
+  color: var(--sh-cyan);
+  text-decoration: none;
+}
+.vp-doc a:hover {
+  color: var(--sh-phosphor);
+  text-decoration: underline;
+}
