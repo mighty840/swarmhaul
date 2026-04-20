@@ -28,8 +28,9 @@ function solToLamports(sol: number): bigint {
 
 export async function devRoutes(app: FastifyInstance) {
   // Dev convenience: accept any content-type (or none) for POSTs inside
-  // this plugin scope. The routes take no input, so a bare
-  // `curl -X POST http://…/dev/seed-multi-leg` should just work.
+  // this plugin scope. The routes take no input other than query params,
+  // so a bare `curl -X POST http://…/dev/seed-multi-leg` should just
+  // work.
   app.addContentTypeParser(
     "*",
     { parseAs: "string" },
@@ -179,10 +180,117 @@ export async function devRoutes(app: FastifyInstance) {
         finalLegRecipient: shipperPubkey,
         intermediateLegRecipient: COURIER_1,
         notes: [
-          "Final leg (leg_index=1) can be confirmed by the coordinator/shipper via the dashboard CONFIRM DELIVERY button — Phantom must be connected as the shipper pubkey above.",
-          `Intermediate leg (leg_index=0) must be signed by ${COURIER_1}. The dashboard does not expose that UI yet — Week 3 step 3 (agent execution loop) adds agent-side auto-confirm. Until then, drive it from a CLI/script using the courier keypair.`,
-          "Running agent daemons will NOT pollute this swarm with extra bids: the seeded package origin/destination are far outside their Munich-centred itineraries and fail the detour check.",
+          "Final leg is signed by the coordinator/shipper via the dashboard CONFIRM DELIVERY button — import ~/.config/solana/swarmhaul-devnet.json into Phantom to sign.",
+          "Intermediate leg is now auto-signed by the next-hop agent daemon after ~15 s simulated transit.",
         ],
+      },
+    });
+  });
+
+  /**
+   * POST /dev/seed-bids?packageId=<uuid>
+   *
+   * Takes an existing **listed** package (created by a real shipper via
+   * the dashboard's Dispatch flow, i.e. Phantom signed list_package) and
+   * injects two complementary bids that together form a 2-leg relay from
+   * that package's origin to its destination. Then triggers swarm
+   * formation.
+   *
+   * Useful when you want to click through multi-leg as yourself —
+   * you stay the shipper (so CONFIRM DELIVERY on the final leg is wired
+   * to your wallet), and this helper just supplies the deterministic
+   * relay bids the running agent daemons wouldn't naturally produce
+   * for a far-apart origin/destination.
+   */
+  app.post("/seed-bids", async (req, reply) => {
+    const { packageId } = (req.query as { packageId?: string }) ?? {};
+    if (!packageId) {
+      return reply
+        .code(400)
+        .send({ error: "query param `packageId` required" });
+    }
+
+    const pkg = await prisma.package.findUnique({ where: { id: packageId } });
+    if (!pkg) return reply.code(404).send({ error: "package not found" });
+    if (pkg.status !== "listed") {
+      return reply.code(409).send({
+        error: `package status is '${pkg.status}', must be 'listed' for seed-bids`,
+      });
+    }
+    if (!pkg.onChainPackage || !pkg.onChainVault) {
+      return reply.code(409).send({
+        error: "package has no on-chain accounts yet — shipper hasn't signed list_package",
+      });
+    }
+
+    const mid = {
+      lat: (pkg.originLat + pkg.destLat) / 2,
+      lng: (pkg.originLng + pkg.destLng) / 2,
+    };
+    const expiresAt = new Date(Date.now() + 10 * 60_000);
+    // Cap per-leg cost to half the budget each so the chain fits.
+    const perLegSol = Math.max(
+      0.001,
+      Math.min(0.04, pkg.maxBudgetSol / 2 - 0.001),
+    );
+
+    await prisma.bid.createMany({
+      data: [
+        {
+          packageId: pkg.id,
+          agentPubkey: COURIER_0,
+          pickupLat: pkg.originLat,
+          pickupLng: pkg.originLng,
+          dropoffLat: mid.lat,
+          dropoffLng: mid.lng,
+          distanceKm: 40,
+          estimatedDurationMin: 60,
+          costSol: perLegSol,
+          reasoning: "DEV seed · leg 0 (origin → mid)",
+          expiresAt,
+        },
+        {
+          packageId: pkg.id,
+          agentPubkey: COURIER_1,
+          pickupLat: mid.lat,
+          pickupLng: mid.lng,
+          dropoffLat: pkg.destLat,
+          dropoffLng: pkg.destLng,
+          distanceKm: 40,
+          estimatedDurationMin: 60,
+          costSol: perLegSol,
+          reasoning: "DEV seed · leg 1 (mid → dest)",
+          expiresAt,
+        },
+      ],
+    });
+
+    try {
+      await evaluateSwarmFormation(pkg.id);
+    } catch (err) {
+      app.log.error({ err }, "dev seed-bids: swarm evaluation failed");
+      return reply.code(500).send({
+        error: "swarm evaluation failed after seeding bids",
+        details: String(err),
+      });
+    }
+
+    const result = await prisma.package.findUnique({
+      where: { id: pkg.id },
+      include: {
+        swarm: {
+          include: { legs: { orderBy: { legIndex: "asc" } } },
+        },
+      },
+    });
+    return reply.code(201).send({
+      packageId: pkg.id,
+      shipperPubkey: pkg.shipperPubkey,
+      package: result,
+      howToTest: {
+        note: "You remain the shipper. Once the agent daemon auto-signs the intermediate handoff (~15 s), the CONFIRM DELIVERY button on the final leg is wired to your Phantom wallet — click it to complete the demo.",
+        finalLegRecipient: pkg.shipperPubkey,
+        intermediateLegRecipient: COURIER_1,
       },
     });
   });

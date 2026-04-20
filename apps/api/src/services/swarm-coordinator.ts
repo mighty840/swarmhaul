@@ -141,12 +141,17 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
       })),
     );
 
-    // Persist on-chain addresses + per-leg PDAs
+    // Persist on-chain addresses + per-leg PDAs. Once form_swarm +
+    // assign_leg land, on-chain `SwarmAccount.status` is `Active`, so
+    // the DB mirror should move from `forming` → `active` too. Without
+    // this the dashboard's second status pill is stuck on "forming"
+    // all the way until settle.
     await prisma.swarm.update({
       where: { id: swarm.id },
       data: {
         onChainSwarm: swarmPda.toBase58(),
         formSignature: signature,
+        status: "active",
       },
     });
 
@@ -199,7 +204,7 @@ export async function evaluateSwarmFormation(packageId: string): Promise<void> {
         totalCostSol: swarm.totalCostSol,
         escrowAccount: swarmPda.toBase58(),
         formedAt: swarm.formedAt,
-        status: "forming",
+        status: "active",
       },
     });
 
