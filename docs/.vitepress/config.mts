@@ -7,8 +7,12 @@ export default defineConfig({
   title: "SwarmHaul",
   description:
     "Multi-agent coordination protocol on Solana. Autonomous agents discover tasks, self-organize into delivery swarms, and settle payment per-contribution on-chain.",
-  base: "/",
-  head: [["link", { rel: "icon", href: "/logo.svg" }]],
+  // TEMPORARY: GH Pages serves this site at mighty840.github.io/swarmhaul/
+  // until the docs.swarmhaul.defited.com CNAME is wired. Flip back to
+  // "/" when the custom domain is set — tracked in memory at
+  // project_swarmhaul_custom_domains.md.
+  base: "/swarmhaul/",
+  head: [["link", { rel: "icon", href: "/swarmhaul/logo.svg" }]],
 
   appearance: "dark",
   ignoreDeadLinks: true,
