@@ -86,7 +86,7 @@ function AppShell() {
           </a>
           <span className="text-[var(--color-faint)]">│</span>
           <a
-            href="https://docs.swarmhaul.defited.com"
+            href="https://mighty840.github.io/swarmhaul/"
             target="_blank"
             rel="noreferrer"
             className="hover:text-[var(--color-phosphor)]"
@@ -95,7 +95,7 @@ function AppShell() {
           </a>
           <span className="text-[var(--color-faint)]">│</span>
           <a
-            href="https://docs.swarmhaul.defited.com/reference/mcp"
+            href="https://mighty840.github.io/swarmhaul/reference/mcp"
             target="_blank"
             rel="noreferrer"
             className="hover:text-[var(--color-phosphor)]"
