@@ -76,6 +76,33 @@ function AppShell() {
       <footer className="border-t border-[var(--color-line)] bg-[var(--color-graphite)] px-4 h-7 flex items-center justify-between text-[9px] tracking-[0.16em] uppercase text-[var(--color-steel)] font-semibold">
         <div>SWARMHAUL ▸ MULTI-AGENT COORDINATION PROTOCOL ▸ SOLANA</div>
         <div className="flex items-center gap-4">
+          <a
+            href="https://swarmhaul.defited.com"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[var(--color-phosphor)]"
+          >
+            PITCH ↗
+          </a>
+          <span className="text-[var(--color-faint)]">│</span>
+          <a
+            href="https://docs.swarmhaul.defited.com"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[var(--color-phosphor)]"
+          >
+            DOCS ↗
+          </a>
+          <span className="text-[var(--color-faint)]">│</span>
+          <a
+            href="https://docs.swarmhaul.defited.com/reference/mcp"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[var(--color-phosphor)]"
+          >
+            MCP ↗
+          </a>
+          <span className="text-[var(--color-faint)]">│</span>
           <span>RFB-05 // RFB-02 // RFB-01</span>
           <span className="text-[var(--color-faint)]">│</span>
           <span className="text-[var(--color-phosphor)]">⏵ READY</span>

@@ -6,7 +6,7 @@ spec) are live and Orca has redeployed. One take, screen recording at
 
 ## Setup before recording
 
-- **Dashboard** open at <https://dashboard.swarmhaul.defited.com>
+- **Dashboard** open at [dashboard.swarmhaul.defited.com](https://dashboard.swarmhaul.defited.com)
 - **Phantom** logged in, devnet network, ≥ 0.2 SOL on the shipper
   wallet (`57LY…pwG`)
 - **Observatory** view showing live organic activity — no seed data,

@@ -1,5 +1,44 @@
+import { useState } from "react";
 import type { AgentReputation } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
+
+const MCP_ENDPOINT =
+  import.meta.env.VITE_MCP_URL ??
+  (import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/mcp`
+    : "https://api.swarmhaul.defited.com/mcp");
+
+const MCP_JSON_SNIPPET = `{
+  "mcpServers": {
+    "swarmhaul": {
+      "url": "${MCP_ENDPOINT}",
+      "transport": "http"
+    }
+  }
+}`;
+
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard API can fail on non-HTTPS contexts or locked-down
+      // browsers; silently ignore — the snippet is still selectable.
+    }
+  };
+  return (
+    <button
+      onClick={onCopy}
+      aria-label={label ? `Copy ${label}` : "Copy"}
+      className="text-[9px] tracking-[0.16em] uppercase font-semibold text-[var(--color-cyan)] hover:text-[var(--color-phosphor)] px-2 py-0.5 border border-[var(--color-line-hot)] hover:border-[var(--color-cyan)] transition-colors"
+    >
+      {copied ? "COPIED ✓" : "COPY"}
+    </button>
+  );
+}
 
 const AGENT_COLORS = [
   "var(--color-phosphor)",
@@ -190,15 +229,44 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
               ))}
             </div>
 
-            <div className="mt-4 p-3 bg-[var(--color-void)] border border-[var(--color-line)] font-mono text-[10px]">
-              <div className="text-[var(--color-ash)] mb-1 tracking-[0.14em] uppercase font-semibold">
-                ▸ ADD TO mcp.json
+            <div className="mt-4 space-y-3">
+              {/* Endpoint URL with copy button */}
+              <div className="border border-[var(--color-line)] bg-[var(--color-void)] p-3">
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <div className="text-[9px] text-[var(--color-ash)] tracking-[0.16em] uppercase font-semibold">
+                    ▸ ENDPOINT
+                  </div>
+                  <CopyButton value={MCP_ENDPOINT} label="MCP endpoint" />
+                </div>
+                <code className="block font-mono text-[11px] text-[var(--color-phosphor)] break-all select-all">
+                  {MCP_ENDPOINT}
+                </code>
               </div>
-              <div className="text-[var(--color-cyan)]">
-                "swarmhaul":{" "}
-                <span className="text-[var(--color-bone)]">
-                  {`{ "url": "..." }`}
-                </span>
+
+              {/* mcp.json snippet with copy button */}
+              <div className="border border-[var(--color-line)] bg-[var(--color-void)] p-3">
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <div className="text-[9px] text-[var(--color-ash)] tracking-[0.16em] uppercase font-semibold">
+                    ▸ ADD TO mcp.json
+                  </div>
+                  <CopyButton value={MCP_JSON_SNIPPET} label="mcp.json snippet" />
+                </div>
+                <pre className="font-mono text-[10px] text-[var(--color-bone)] leading-snug whitespace-pre-wrap break-all select-all">
+                  {MCP_JSON_SNIPPET}
+                </pre>
+              </div>
+
+              <div className="text-[10px] text-[var(--color-steel)] leading-relaxed">
+                Works in Claude Desktop, Cursor, Continue, or any MCP HTTP
+                client.{" "}
+                <a
+                  href="https://docs.swarmhaul.defited.com/reference/mcp"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--color-cyan)] hover:underline"
+                >
+                  Full integration guide ↗
+                </a>
               </div>
             </div>
           </div>

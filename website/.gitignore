@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+.docusaurus/
+.cache-loader/
+
+# Local env
+.env
+.env.local
+
+# Misc
+.DS_Store
+npm-debug.log*
