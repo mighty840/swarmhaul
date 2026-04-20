@@ -27,6 +27,15 @@ function solToLamports(sol: number): bigint {
 }
 
 export async function devRoutes(app: FastifyInstance) {
+  // Dev convenience: accept any content-type (or none) for POSTs inside
+  // this plugin scope. The routes take no input, so a bare
+  // `curl -X POST http://…/dev/seed-multi-leg` should just work.
+  app.addContentTypeParser(
+    "*",
+    { parseAs: "string" },
+    (_req, _body, done) => done(null, {}),
+  );
+
   /**
    * POST /dev/seed-multi-leg
    *
