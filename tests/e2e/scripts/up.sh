@@ -63,16 +63,34 @@ log "starting solana-test-validator"
 )
 wait_for "validator" "solana cluster-version -u http://127.0.0.1:8899" 60
 
-# 5. Airdrop coordinator + fixture agents.
+# 5. Airdrop coordinator + fixture agents. Derive pubkeys from the
+# keypair files so fresh CI fixtures are funded — not a local dev's
+# hardcoded pubkey.
 log "airdropping coordinator + agents"
-for pk in \
-  57LYCghjSiryZdADutcYjyZdPXzUomRvrpsNa8Wr9pwG \
-  7FBqQRTgCgCrvavzxXRAnug8xiX9NmjaqJXc59KiQFyu \
-  961WAsZTgPo8WGUfLum6fW4UqKbjYjUHLJ4SyuGyVvZy \
-  8ba9B9MouLb9QbAzvxcu3ob91zPy5eGA8y21QrraWHHw
-do
+airdrop() {
+  local kp="$1"
+  [ -f "$kp" ] || return
+  local pk
+  pk=$(solana-keygen pubkey "$kp")
   solana airdrop 50 "$pk" -u http://127.0.0.1:8899 >/dev/null
-done
+  log "  funded $pk ($(basename "$kp"))"
+}
+airdrop "$COORDINATOR_KEYPAIR"
+airdrop /tmp/swarmhaul-e2e/keypair-alpha.json
+airdrop /tmp/swarmhaul-e2e/keypair-bravo.json
+airdrop /tmp/swarmhaul-e2e/keypair-charlie.json
+
+# The dev seed route uses hardcoded alpha/bravo pubkeys for its canned
+# bids; override with the freshly-generated CI fixtures so the swarm
+# it forms references identities that actually exist in this run.
+if [ -f /tmp/swarmhaul-e2e/keypair-alpha.json ]; then
+  DEV_SEED_COURIER_0=$(solana-keygen pubkey /tmp/swarmhaul-e2e/keypair-alpha.json)
+  export DEV_SEED_COURIER_0
+fi
+if [ -f /tmp/swarmhaul-e2e/keypair-bravo.json ]; then
+  DEV_SEED_COURIER_1=$(solana-keygen pubkey /tmp/swarmhaul-e2e/keypair-bravo.json)
+  export DEV_SEED_COURIER_1
+fi
 
 # 6. API.
 log "starting API"
