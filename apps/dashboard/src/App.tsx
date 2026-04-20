@@ -77,7 +77,7 @@ function AppShell() {
         <div>SWARMHAUL ▸ MULTI-AGENT COORDINATION PROTOCOL ▸ SOLANA</div>
         <div className="flex items-center gap-4">
           <a
-            href="https://swarmhaul.defited.com"
+            href="https://mighty840.github.io/swarmhaul-pitch/"
             target="_blank"
             rel="noreferrer"
             className="hover:text-[var(--color-phosphor)]"
