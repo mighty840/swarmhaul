@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AgentReputation } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
+import { AgentIdentityPanel } from "../components/AgentIdentityPanel.js";
 
 const MCP_ENDPOINT =
   import.meta.env.VITE_MCP_URL ??
@@ -70,6 +71,8 @@ const MCP_TOOLS = [
 ];
 
 export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] }) {
+  const [inspectPubkey, setInspectPubkey] = useState<string | null>(null);
+
   return (
     <div className="space-y-5 glitch-in">
       <div className="flex items-end justify-between border-b border-[var(--color-line)] pb-4">
@@ -111,9 +114,12 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                 const color = agentColorFor(agent.agentPubkey);
                 const rank = i + 1;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={agent.agentPubkey}
-                    className="flex items-center gap-4 p-4 border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 group transition-colors"
+                    onClick={() => setInspectPubkey(agent.agentPubkey)}
+                    aria-label={`Inspect identity for agent ${shortenPubkey(agent.agentPubkey)}`}
+                    className="w-full text-left flex items-center gap-4 p-4 border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 group transition-colors cursor-pointer"
                   >
                     {/* Rank */}
                     <div className="w-10 text-center">
@@ -185,7 +191,15 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                         />
                       </div>
                     </div>
-                  </div>
+
+                    {/* DID hint — visible on row hover so the leaderboard
+                        stays clean but visitors still discover the panel. */}
+                    <span
+                      className="hidden lg:inline text-[9px] tracking-[0.16em] uppercase font-semibold text-[var(--color-ash)] opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      DID ↗
+                    </span>
+                  </button>
                 );
               })}
             </div>
@@ -272,6 +286,11 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
           </div>
         </Panel>
       </div>
+
+      <AgentIdentityPanel
+        pubkey={inspectPubkey}
+        onClose={() => setInspectPubkey(null)}
+      />
     </div>
   );
 }
