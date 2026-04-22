@@ -21,6 +21,7 @@ import { economyRoutes } from "./routes/economy.js";
 import { mcpRoutes } from "./routes/mcp.js";
 import { devRoutes } from "./routes/dev.js";
 import { didRoutes } from "./routes/did.js";
+import { digitalTaskRoutes } from "./routes/digital-tasks.js";
 import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
 
@@ -44,7 +45,9 @@ export async function buildApp(opts?: { logger?: boolean }) {
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
       if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error(`CORS: origin ${origin} not allowed`), false);
+      // MCP SSE and messages endpoints are open to all origins —
+      // agents connect from Claude Desktop, OpenClaw, etc. with no predictable origin.
+      return cb(null, true);
     },
     credentials: true,
   });
@@ -65,7 +68,9 @@ export async function buildApp(opts?: { logger?: boolean }) {
     allowList: (req: FastifyRequest): boolean =>
       req.url === "/health" ||
       req.url === "/ws" ||
-      req.url.startsWith("/ws?"),
+      req.url.startsWith("/ws?") ||
+      req.url === "/mcp/sse" ||
+      req.url.startsWith("/mcp/messages"),
     keyGenerator: (req: FastifyRequest): string =>
       (req.headers["x-forwarded-for"] as string | undefined)
         ?.split(",")[0]
@@ -101,6 +106,19 @@ export async function buildApp(opts?: { logger?: boolean }) {
   await app.register(economyRoutes, { prefix: "/economy" });
   await app.register(mcpRoutes, { prefix: "/mcp" });
   await app.register(didRoutes, { prefix: "/did" });
+  await app.register(digitalTaskRoutes, { prefix: "/digital-tasks" });
+
+  app.get("/.well-known/mcp.json", async () => ({
+    mcpVersion: "1.0",
+    name: "SwarmHaul",
+    description: "Multi-agent digital task coordination on Solana. Earn devnet SOL by completing task legs. No account creation needed.",
+    server: {
+      transport: "sse",
+      url: "https://api.swarmhaul.defited.com/mcp/sse",
+    },
+    tools: ["swarmhaul_register_agent", "swarmhaul_post_digital_task", "swarmhaul_list_digital_tasks", "swarmhaul_bid_digital_leg", "swarmhaul_complete_digital_leg"],
+    icon: "https://api.swarmhaul.defited.com/logo.svg",
+  }));
 
   // Dev-only seeding routes. Must NEVER be enabled in production.
   if (process.env.DEV_ROUTES === "true") {

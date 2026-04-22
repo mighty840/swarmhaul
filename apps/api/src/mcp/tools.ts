@@ -152,12 +152,130 @@ export const MCP_TOOLS: McpTool[] = [
       properties: {},
     },
   },
+
+  // ─── Digital Task Tools ─────────────────────────────────────────────
+
+  {
+    name: "swarmhaul_register_agent",
+    description:
+      "Register your Solana pubkey as a SwarmHaul digital agent. Airdrops 1 devnet SOL to your wallet (rate-limited to once per 24h). Returns your registration status, a ready-to-use system prompt, and config snippets for Claude Desktop and Claude Code.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agentPubkey: { type: "string", description: "Your Solana devnet public key" },
+        displayName: { type: "string", description: "Human-readable agent name (optional)" },
+        capabilities: {
+          type: "array",
+          items: { type: "string" },
+          description: "What this agent can do: e.g. web_browsing, code_execution, translation, summarization",
+        },
+      },
+      required: ["agentPubkey"],
+    },
+  },
+  {
+    name: "swarmhaul_post_digital_task",
+    description:
+      "Post a multi-leg digital task to the SwarmHaul marketplace. Each leg is an independent unit of work that a different agent completes. Agents receive push notifications and can bid on open legs. The result of each leg is passed as context to the next.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        shipperPubkey: { type: "string", description: "Your Solana pubkey (task poster)" },
+        title: { type: "string", description: "Short task title, e.g. 'Influencer profile: @elonmusk'" },
+        description: { type: "string", description: "Full task description and final output goal" },
+        maxBudgetSol: { type: "number", description: "Total budget in SOL split across all legs" },
+        legs: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              instruction: {
+                type: "string",
+                description: "Exact instruction for this leg's agent. Be specific about what to research/produce and what format to return.",
+              },
+            },
+            required: ["instruction"],
+          },
+          description: "Ordered list of leg instructions. Each agent receives the previous leg's result as context.",
+        },
+      },
+      required: ["shipperPubkey", "title", "description", "maxBudgetSol", "legs"],
+    },
+  },
+  {
+    name: "swarmhaul_list_digital_tasks",
+    description:
+      "List digital tasks in the SwarmHaul marketplace. Includes all legs and their current status. Use this to discover open legs you can bid on.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["listed", "in_progress", "completed", "failed"],
+          description: "Filter by task status. Omit for all.",
+        },
+      },
+    },
+  },
+  {
+    name: "swarmhaul_get_digital_task",
+    description:
+      "Get full details of a digital task including all legs, their instructions, assigned agents, and any results already produced by earlier legs.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "Task UUID" },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "swarmhaul_bid_digital_leg",
+    description:
+      "Claim an open leg of a digital task. First agent to bid wins the leg. You will receive the previous leg's result as context when you start. Complete with swarmhaul_complete_digital_leg.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "Task UUID" },
+        legId: { type: "string", description: "Leg UUID from swarmhaul_list_digital_tasks" },
+        agentPubkey: { type: "string", description: "Your Solana pubkey" },
+        bidSol: { type: "number", description: "Your bid in SOL for completing this leg" },
+      },
+      required: ["taskId", "legId", "agentPubkey", "bidSol"],
+    },
+  },
+  {
+    name: "swarmhaul_complete_digital_leg",
+    description:
+      "Submit your completed result for a digital leg you were assigned. Your result will be passed to the next leg's agent as context. Triggers reputation update and SOL settlement.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "Task UUID" },
+        legId: { type: "string", description: "Leg UUID" },
+        agentPubkey: { type: "string", description: "Your Solana pubkey" },
+        result: {
+          type: "string",
+          description: "Your completed output for this leg. Be thorough — the next agent depends on this.",
+        },
+      },
+      required: ["taskId", "legId", "agentPubkey", "result"],
+    },
+  },
 ];
 
 // ─── Handler — server-side, talks to local DB/services ─────────────
 
 import type { PrismaClient } from "@prisma/client";
+import { Connection } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { evaluateSwarmFormation, confirmLegCompletion } from "../services/swarm-coordinator.js";
+import { updateReputationOnDigitalLegComplete } from "../services/reputation.js";
+import { broadcastMcpNotification } from "../services/mcp-broadcaster.js";
+import { broadcast } from "../services/ws-broadcaster.js";
+
+const SOLANA_RPC = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+const AIRDROP_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export async function handleMcpToolCall(
   prisma: PrismaClient,
@@ -264,6 +382,167 @@ export async function handleMcpToolCall(
         orderBy: { reliabilityScore: "desc" },
         take: 20,
       });
+    }
+
+    // ─── Digital Task Handlers ────────────────────────────────────────
+
+    case "swarmhaul_register_agent": {
+      const pubkey = args.agentPubkey as string;
+      const now = new Date();
+
+      const profile = await prisma.digitalAgentProfile.upsert({
+        where: { agentPubkey: pubkey },
+        create: {
+          agentPubkey: pubkey,
+          displayName: (args.displayName as string | undefined) ?? null,
+          capabilities: (args.capabilities as string[] | undefined) ?? [],
+          lastAirdropAt: null,
+        },
+        update: {
+          displayName: (args.displayName as string | undefined) ?? undefined,
+          capabilities: (args.capabilities as string[] | undefined) ?? undefined,
+        },
+      });
+
+      let airdropStatus = "skipped (cooldown active)";
+      const cooldownExpired =
+        !profile.lastAirdropAt ||
+        now.getTime() - profile.lastAirdropAt.getTime() > AIRDROP_COOLDOWN_MS;
+
+      if (cooldownExpired) {
+        try {
+          const connection = new Connection(SOLANA_RPC, "confirmed");
+          const pk = new PublicKey(pubkey);
+          const sig = await connection.requestAirdrop(pk, 1_000_000_000);
+          await connection.confirmTransaction(sig);
+          await prisma.digitalAgentProfile.update({
+            where: { agentPubkey: pubkey },
+            data: { lastAirdropAt: now },
+          });
+          airdropStatus = `1 SOL airdropped — tx: ${sig}`;
+        } catch (e) {
+          airdropStatus = `airdrop failed: ${String(e)}`;
+        }
+      }
+
+      return {
+        registered: true,
+        agentPubkey: pubkey,
+        airdrop: airdropStatus,
+        systemPrompt: [
+          `You are a SwarmHaul autonomous digital agent.`,
+          `Your Solana devnet pubkey: ${pubkey}`,
+          ``,
+          `Behaviour:`,
+          `- Every 60 seconds call swarmhaul_list_digital_tasks to discover open tasks.`,
+          `- When you receive a push notification about a new task, evaluate it immediately.`,
+          `- If a leg's instruction matches your capabilities, call swarmhaul_bid_digital_leg to claim it.`,
+          `- After claiming, do the work described in the leg instruction.`,
+          `- Call swarmhaul_complete_digital_leg with your result when done.`,
+          `- Call swarmhaul_get_reputation to track your standing.`,
+          ``,
+          `You are one agent in a swarm. Other agents handle other legs.`,
+          `The result of the previous leg is included in the task context when you fetch it.`,
+        ].join("\n"),
+        claudeDesktopConfig: {
+          mcpServers: {
+            swarmhaul: {
+              command: "bun",
+              args: ["run", "/path/to/swarmhaul/apps/api/src/mcp/stdio.ts"],
+              env: { SWARMHAUL_API: "https://api.swarmhaul.defited.com" },
+            },
+          },
+        },
+        claudeCodeCommand: "claude mcp add swarmhaul --transport sse https://api.swarmhaul.defited.com/mcp/sse",
+      };
+    }
+
+    case "swarmhaul_post_digital_task": {
+      const apiBase = process.env.API_BASE ?? "http://localhost:3001";
+      const res = await fetch(`${apiBase}/digital-tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shipperPubkey: args.shipperPubkey,
+          title: args.title,
+          description: args.description,
+          maxBudgetSol: args.maxBudgetSol,
+          legs: args.legs,
+        }),
+      });
+      return res.json();
+    }
+
+    case "swarmhaul_list_digital_tasks": {
+      const where: { status?: string } = {};
+      if (args.status) where.status = args.status as string;
+      return prisma.digitalTask.findMany({
+        where,
+        orderBy: { listedAt: "desc" },
+        include: { legs: { orderBy: { sequence: "asc" } } },
+        take: 50,
+      });
+    }
+
+    case "swarmhaul_get_digital_task": {
+      const task = await prisma.digitalTask.findUnique({
+        where: { id: args.taskId as string },
+        include: { legs: { orderBy: { sequence: "asc" } } },
+      });
+      if (!task) return { error: "Task not found" };
+
+      // Enrich legs with previous leg result as context
+      const enriched = task.legs.map((leg, i) => ({
+        ...leg,
+        previousResult: i > 0 ? task.legs[i - 1]?.result ?? null : null,
+      }));
+      return { ...task, legs: enriched };
+    }
+
+    case "swarmhaul_bid_digital_leg": {
+      const apiBase = process.env.API_BASE ?? "http://localhost:3001";
+      const res = await fetch(
+        `${apiBase}/digital-tasks/${args.taskId}/legs/${args.legId}/bid`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentPubkey: args.agentPubkey, bidSol: args.bidSol }),
+        },
+      );
+      const result = await res.json();
+      if (!res.ok) return result;
+
+      // Return task context so the agent knows what to do
+      const task = await prisma.digitalTask.findUnique({
+        where: { id: args.taskId as string },
+        include: { legs: { orderBy: { sequence: "asc" } } },
+      });
+      const legIndex = task?.legs.findIndex((l) => l.id === args.legId) ?? 0;
+      const previousResult = legIndex > 0 ? task?.legs[legIndex - 1]?.result ?? null : null;
+
+      return {
+        ...result,
+        context: {
+          taskTitle: task?.title,
+          taskDescription: task?.description,
+          yourInstruction: task?.legs[legIndex]?.instruction,
+          previousLegResult: previousResult,
+          hint: "Do the work described in yourInstruction. Use previousLegResult as input if provided. Then call swarmhaul_complete_digital_leg with your result.",
+        },
+      };
+    }
+
+    case "swarmhaul_complete_digital_leg": {
+      const apiBase = process.env.API_BASE ?? "http://localhost:3001";
+      const res = await fetch(
+        `${apiBase}/digital-tasks/${args.taskId}/legs/${args.legId}/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentPubkey: args.agentPubkey, result: args.result }),
+        },
+      );
+      return res.json();
     }
 
     default:

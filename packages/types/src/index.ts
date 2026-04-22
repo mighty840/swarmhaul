@@ -118,6 +118,36 @@ export interface NegotiationMessage {
   timestamp: Date;
 }
 
+// === Digital Tasks ===
+
+export type DigitalTaskStatus = "listed" | "in_progress" | "completed" | "failed";
+export type DigitalLegStatus = "open" | "assigned" | "in_progress" | "completed" | "failed";
+
+export interface DigitalLeg {
+  id: string;
+  taskId: string;
+  sequence: number;
+  instruction: string;
+  agentPubkey?: string;
+  bidSol?: number;
+  status: DigitalLegStatus;
+  result?: string;
+  startedAt?: Date;
+  completedAt?: Date;
+}
+
+export interface DigitalTask {
+  id: string;
+  shipperPubkey: string;
+  title: string;
+  description: string;
+  maxBudgetSol: number;
+  status: DigitalTaskStatus;
+  listedAt: Date;
+  completedAt?: Date;
+  legs: DigitalLeg[];
+}
+
 // === WebSocket Events ===
 
 export type WSEvent =
@@ -130,4 +160,8 @@ export type WSEvent =
   | { type: "PACKAGE_STATUS_CHANGED"; packageId: string; status: "in_transit" | "delivered" }
   | { type: "PACKAGE_DELIVERED"; packageId: string }
   | { type: "VEHICLE_LOCATION"; pubkey: string; location: LatLng }
-  | { type: "REPUTATION_UPDATED"; reputation: AgentReputation };
+  | { type: "REPUTATION_UPDATED"; reputation: AgentReputation }
+  | { type: "DIGITAL_TASK_LISTED"; task: DigitalTask }
+  | { type: "DIGITAL_LEG_ASSIGNED"; taskId: string; leg: DigitalLeg }
+  | { type: "DIGITAL_LEG_COMPLETED"; taskId: string; leg: DigitalLeg }
+  | { type: "DIGITAL_TASK_COMPLETED"; task: DigitalTask };

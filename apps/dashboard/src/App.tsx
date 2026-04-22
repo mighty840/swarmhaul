@@ -10,6 +10,7 @@ import { CourierView } from "./pages/CourierView.js";
 import { EconomyView } from "./pages/EconomyView.js";
 import { ReputationModelView } from "./pages/ReputationModelView.js";
 import { SwarmDetailView } from "./pages/SwarmDetailView.js";
+import { DigitalTasksView } from "./pages/DigitalTasksView.js";
 
 function AppShell() {
   const [view, setView] = useState<ViewKey>("economy");
@@ -63,6 +64,7 @@ function AppShell() {
         )}
         {view === "shipper" && <ShipperView />}
         {view === "courier" && <CourierView leaderboard={data.leaderboard} />}
+        {view === "digital" && <DigitalTasksView wsEvents={data.wsEvents} />}
         {view === "reputation" && <ReputationModelView />}
         {view === "swarm-detail" && detailPackageId && (
           <SwarmDetailView

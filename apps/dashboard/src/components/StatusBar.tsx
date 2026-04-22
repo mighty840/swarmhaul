@@ -7,6 +7,7 @@ export type ViewKey =
   | "shipper"
   | "courier"
   | "reputation"
+  | "digital"
   | "swarm-detail";
 
 interface StatusBarProps {
@@ -25,9 +26,10 @@ const VIEWS: Array<{
 }> = [
   { key: "economy", label: "OBSERVATORY", idx: "01" },
   { key: "map", label: "SWARM MAP", idx: "02" },
-  { key: "shipper", label: "DISPATCH", idx: "03" },
-  { key: "courier", label: "COURIERS", idx: "04" },
-  { key: "reputation", label: "REPUTATION", idx: "05" },
+  { key: "digital", label: "DIGITAL TASKS", idx: "03" },
+  { key: "shipper", label: "DISPATCH", idx: "04" },
+  { key: "courier", label: "COURIERS", idx: "05" },
+  { key: "reputation", label: "REPUTATION", idx: "06" },
 ];
 
 export function StatusBar({
