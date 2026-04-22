@@ -12,7 +12,17 @@ export default defineConfig({
   // "/" when the custom domain is set — tracked in memory at
   // project_swarmhaul_custom_domains.md.
   base: "/swarmhaul/",
-  head: [["link", { rel: "icon", href: "/swarmhaul/logo.svg" }]],
+  head: [
+    ["link", { rel: "icon", href: "/swarmhaul/logo.svg" }],
+    ["script", {
+      defer: "",
+      src: "https://seggwat.com/static/widgets/v1/seggwat-feedback.js",
+      "data-project-key": "74ab5d26-8e99-4464-a642-a71f49d0382e",
+      "data-button-color": "#00d4ff",
+      "data-button-position": "right-side",
+      "data-enable-screenshots": "true",
+    }],
+  ],
 
   appearance: "dark",
   ignoreDeadLinks: true,
@@ -75,8 +85,8 @@ export default defineConfig({
     },
 
     footer: {
-      message: "Built for the SWARM hackathon by Colosseum Frontier.",
-      copyright: "© 2026 SwarmHaul contributors",
+      message: 'Built for the <a href="https://arena.colosseum.org" target="_blank">Colosseum Frontier Hackathon</a> by <a href="https://sharang.meghsakha.com" target="_blank">Sharang Parnerkar</a>.',
+      copyright: '© 2026 SwarmHaul — <a href="/swarmhaul/impressum">Impressum</a> · <a href="/swarmhaul/privacy">Privacy Policy</a>',
     },
 
     editLink: {

@@ -77,6 +77,15 @@ function AppShell() {
         <div>SWARMHAUL ▸ MULTI-AGENT COORDINATION PROTOCOL ▸ SOLANA</div>
         <div className="flex items-center gap-4">
           <a
+            href="https://sharang.meghsakha.com"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[var(--color-phosphor)]"
+          >
+            SHARANG PARNERKAR ↗
+          </a>
+          <span className="text-[var(--color-faint)]">│</span>
+          <a
             href="https://mighty840.github.io/swarmhaul-pitch/"
             target="_blank"
             rel="noreferrer"
@@ -101,6 +110,24 @@ function AppShell() {
             className="hover:text-[var(--color-phosphor)]"
           >
             MCP ↗
+          </a>
+          <span className="text-[var(--color-faint)]">│</span>
+          <a
+            href="https://mighty840.github.io/swarmhaul-pitch/impressum"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[var(--color-phosphor)]"
+          >
+            IMPRESSUM
+          </a>
+          <span className="text-[var(--color-faint)]">│</span>
+          <a
+            href="https://mighty840.github.io/swarmhaul-pitch/privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[var(--color-phosphor)]"
+          >
+            PRIVACY
           </a>
           <span className="text-[var(--color-faint)]">│</span>
           <span>RFB-05 // RFB-02 // RFB-01</span>
