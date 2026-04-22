@@ -9,13 +9,6 @@ interface EconomyStats {
   legs: { completed: number };
   volume: { totalSol: number };
   wsClients: number;
-  digitalTasks?: {
-    total: number;
-    inProgress: number;
-    completed: number;
-    openLegs: number;
-    legsCompleted: number;
-  };
 }
 
 interface Activity {
@@ -255,35 +248,6 @@ export function EconomyView({
           accent="amber"
         />
       </div>
-
-      {/* Digital task stats row */}
-      {(stats.digitalTasks?.total ?? 0) > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MegaStat
-            label="DIGITAL TASKS"
-            value={stats.digitalTasks?.total ?? 0}
-            delta={`${stats.digitalTasks?.completed ?? 0} COMPLETED`}
-            accent="cyan"
-          />
-          <MegaStat
-            label="TASKS IN PROGRESS"
-            value={stats.digitalTasks?.inProgress ?? 0}
-            delta={`${stats.digitalTasks?.openLegs ?? 0} OPEN LEGS`}
-            accent="amber"
-          />
-          <MegaStat
-            label="DIGITAL LEGS DONE"
-            value={stats.digitalTasks?.legsCompleted ?? 0}
-            accent="phosphor"
-          />
-          <MegaStat
-            label="DIGITAL AGENTS"
-            value={stats.agents.total}
-            delta="MCP CONNECTED"
-            accent="magenta"
-          />
-        </div>
-      )}
 
       {/* Three-column workspace */}
       <div className="grid grid-cols-12 gap-3">

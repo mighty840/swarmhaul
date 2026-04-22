@@ -15,9 +15,8 @@ export async function economyRoutes(app: FastifyInstance) {
       totalLegsCompleted,
       deliveredPackages,
       totalDigitalTasks,
-      inProgressDigitalTasks,
+      activeDigitalTasks,
       completedDigitalTasks,
-      openDigitalLegs,
       completedDigitalLegs,
     ] = await Promise.all([
       prisma.package.count(),
@@ -29,9 +28,8 @@ export async function economyRoutes(app: FastifyInstance) {
       prisma.leg.count({ where: { status: "completed" } }),
       prisma.package.count({ where: { status: "delivered" } }),
       prisma.digitalTask.count(),
-      prisma.digitalTask.count({ where: { status: "in_progress" } }),
+      prisma.digitalTask.count({ where: { status: { in: ["listed", "in_progress"] } } }),
       prisma.digitalTask.count({ where: { status: "completed" } }),
-      prisma.digitalLeg.count({ where: { status: "open" } }),
       prisma.digitalLeg.count({ where: { status: "completed" } }),
     ]);
 
@@ -41,20 +39,20 @@ export async function economyRoutes(app: FastifyInstance) {
     });
 
     return {
-      packages: { total: totalPackages, active: activePackages, delivered: deliveredPackages },
-      swarms: { total: totalSwarms, active: activeSwarms },
+      packages: {
+        total: totalPackages + totalDigitalTasks,
+        active: activePackages + activeDigitalTasks,
+        delivered: deliveredPackages + completedDigitalTasks,
+      },
+      swarms: {
+        total: totalSwarms + totalDigitalTasks,
+        active: activeSwarms + activeDigitalTasks,
+      },
       bids: { total: totalBids },
       agents: { total: totalAgents },
-      legs: { completed: totalLegsCompleted },
+      legs: { completed: totalLegsCompleted + completedDigitalLegs },
       volume: { totalSol: totalVolumeSol._sum.totalCostSol ?? 0 },
       wsClients: getClientCount(),
-      digitalTasks: {
-        total: totalDigitalTasks,
-        inProgress: inProgressDigitalTasks,
-        completed: completedDigitalTasks,
-        openLegs: openDigitalLegs,
-        legsCompleted: completedDigitalLegs,
-      },
     };
   });
 
