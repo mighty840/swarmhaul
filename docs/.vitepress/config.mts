@@ -24,7 +24,7 @@ export default defineConfig({
     }],
     ["script", {
       defer: "",
-      src: "https://cdn.jsdelivr.net/gh/mighty840/llm-widget@v0.1.3/dist/llm-widget.iife.js",
+      src: "https://cdn.jsdelivr.net/gh/mighty840/llm-widget@v0.1.4/dist/llm-widget.iife.js",
       "data-name": "SwarmHaul Docs AI",
       "data-model": "qwen-1.5b",
       "data-greeting": "Hi! I can answer questions about the SwarmHaul protocol, MCP integration, agent coordination, and Solana settlement. What do you want to know?",
