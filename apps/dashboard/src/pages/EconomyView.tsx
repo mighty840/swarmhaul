@@ -9,6 +9,13 @@ interface EconomyStats {
   legs: { completed: number };
   volume: { totalSol: number };
   wsClients: number;
+  digitalTasks?: {
+    total: number;
+    inProgress: number;
+    completed: number;
+    openLegs: number;
+    legsCompleted: number;
+  };
 }
 
 interface Activity {
@@ -32,6 +39,14 @@ interface Activity {
     status: string;
     maxBudgetSol: number;
     listedAt: string;
+  }>;
+  recentDigitalTasks?: Array<{
+    id: string;
+    title: string;
+    status: string;
+    maxBudgetSol: number;
+    listedAt: string;
+    legs: Array<{ status: string }>;
   }>;
 }
 
@@ -241,6 +256,35 @@ export function EconomyView({
         />
       </div>
 
+      {/* Digital task stats row */}
+      {(stats.digitalTasks?.total ?? 0) > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <MegaStat
+            label="DIGITAL TASKS"
+            value={stats.digitalTasks?.total ?? 0}
+            delta={`${stats.digitalTasks?.completed ?? 0} COMPLETED`}
+            accent="cyan"
+          />
+          <MegaStat
+            label="TASKS IN PROGRESS"
+            value={stats.digitalTasks?.inProgress ?? 0}
+            delta={`${stats.digitalTasks?.openLegs ?? 0} OPEN LEGS`}
+            accent="amber"
+          />
+          <MegaStat
+            label="DIGITAL LEGS DONE"
+            value={stats.digitalTasks?.legsCompleted ?? 0}
+            accent="phosphor"
+          />
+          <MegaStat
+            label="DIGITAL AGENTS"
+            value={stats.agents.total}
+            delta="MCP CONNECTED"
+            accent="magenta"
+          />
+        </div>
+      )}
+
       {/* Three-column workspace */}
       <div className="grid grid-cols-12 gap-3">
         {/* LEFT — Agent reasoning stream (the killer feature) */}
@@ -400,10 +444,10 @@ export function EconomyView({
         />
       </div>
 
-      {/* Recent packages table */}
+      {/* Recent packages + digital tasks combined ledger */}
       <Panel
-        title="DISPATCH LEDGER ▸ RECENT PACKAGES"
-        meta={`${activity?.recentPackages.length ?? 0} ROWS · CLICK ROW TO INSPECT SWARM`}
+        title="DISPATCH LEDGER ▸ RECENT TASKS"
+        meta={`${(activity?.recentPackages.length ?? 0) + (activity?.recentDigitalTasks?.length ?? 0)} ROWS · CLICK PHYSICAL ROW TO INSPECT SWARM`}
         accent="amber"
       >
         <div className="overflow-x-auto">
@@ -465,6 +509,47 @@ export function EconomyView({
                     </td>
                     <td className="py-2.5 px-4 text-right text-[var(--color-steel)] tabular-nums">
                       {timeAgo(pkg.listedAt)} ago
+                    </td>
+                  </tr>
+                );
+              })}
+              {activity?.recentDigitalTasks?.map((task) => {
+                const completedLegs = task.legs.filter((l) => l.status === "completed").length;
+                const statusColor =
+                  task.status === "completed" ? "var(--color-phosphor)"
+                  : task.status === "in_progress" ? "var(--color-amber)"
+                  : "var(--color-cyan)";
+                return (
+                  <tr
+                    key={task.id}
+                    className="border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 cursor-default"
+                  >
+                    <td className="py-2.5 px-4 font-mono text-[var(--color-steel)] tabular-nums">
+                      {task.id.slice(0, 8)}
+                    </td>
+                    <td className="py-2.5 px-2 text-[var(--color-bone)]">
+                      <span className="text-[8px] tracking-[0.14em] font-semibold text-[var(--color-cyan)] mr-2 border border-[var(--color-cyan)] px-1 py-0.5">
+                        DIGITAL
+                      </span>
+                      {task.title}
+                    </td>
+                    <td className="py-2.5 px-2 text-right text-[var(--color-bone)] tabular-nums font-semibold">
+                      {task.maxBudgetSol}{" "}
+                      <span className="text-[var(--color-ash)] text-[9px] font-semibold">SOL</span>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5" style={{ backgroundColor: statusColor }} />
+                        <span className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: statusColor }}>
+                          {task.status.replace("_", " ")}
+                        </span>
+                        <span className="ml-2 text-[9px] text-[var(--color-ash)]">
+                          {completedLegs}/{task.legs.length} legs
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-4 text-right text-[var(--color-steel)] tabular-nums">
+                      {timeAgo(task.listedAt)} ago
                     </td>
                   </tr>
                 );

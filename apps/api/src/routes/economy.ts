@@ -14,6 +14,11 @@ export async function economyRoutes(app: FastifyInstance) {
       totalAgents,
       totalLegsCompleted,
       deliveredPackages,
+      totalDigitalTasks,
+      inProgressDigitalTasks,
+      completedDigitalTasks,
+      openDigitalLegs,
+      completedDigitalLegs,
     ] = await Promise.all([
       prisma.package.count(),
       prisma.package.count({ where: { status: { in: ["listed", "swarm_forming", "in_transit"] } } }),
@@ -23,6 +28,11 @@ export async function economyRoutes(app: FastifyInstance) {
       prisma.agentReputation.count(),
       prisma.leg.count({ where: { status: "completed" } }),
       prisma.package.count({ where: { status: "delivered" } }),
+      prisma.digitalTask.count(),
+      prisma.digitalTask.count({ where: { status: "in_progress" } }),
+      prisma.digitalTask.count({ where: { status: "completed" } }),
+      prisma.digitalLeg.count({ where: { status: "open" } }),
+      prisma.digitalLeg.count({ where: { status: "completed" } }),
     ]);
 
     const totalVolumeSol = await prisma.swarm.aggregate({
@@ -38,12 +48,19 @@ export async function economyRoutes(app: FastifyInstance) {
       legs: { completed: totalLegsCompleted },
       volume: { totalSol: totalVolumeSol._sum.totalCostSol ?? 0 },
       wsClients: getClientCount(),
+      digitalTasks: {
+        total: totalDigitalTasks,
+        inProgress: inProgressDigitalTasks,
+        completed: completedDigitalTasks,
+        openLegs: openDigitalLegs,
+        legsCompleted: completedDigitalLegs,
+      },
     };
   });
 
   // Recent activity feed
   app.get("/activity", async () => {
-    const [recentBids, recentLegs, recentPackages] = await Promise.all([
+    const [recentBids, recentLegs, recentPackages, recentDigitalTasks] = await Promise.all([
       prisma.bid.findMany({
         orderBy: { createdAt: "desc" },
         take: 10,
@@ -79,8 +96,20 @@ export async function economyRoutes(app: FastifyInstance) {
           listedAt: true,
         },
       }),
+      prisma.digitalTask.findMany({
+        orderBy: { listedAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          maxBudgetSol: true,
+          listedAt: true,
+          legs: { select: { status: true } },
+        },
+      }),
     ]);
 
-    return { recentBids, recentLegs, recentPackages };
+    return { recentBids, recentLegs, recentPackages, recentDigitalTasks };
   });
 }
