@@ -8,7 +8,7 @@ import { updateReputationOnDigitalLegComplete } from "../services/reputation.js"
 const CreateBody = z.object({
   shipperPubkey: z.string(),
   title: z.string().min(1),
-  description: z.string().min(1),
+  description: z.string().optional().default(""),
   maxBudgetSol: z.number().positive(),
   // Legs are optional — if omitted the API plans them via LLM
   legs: z.array(z.object({ instruction: z.string() })).max(10).optional(),
