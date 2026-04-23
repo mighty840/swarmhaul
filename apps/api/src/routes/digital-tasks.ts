@@ -7,14 +7,54 @@ import { updateReputationOnDigitalLegComplete } from "../services/reputation.js"
 
 const CreateBody = z.object({
   shipperPubkey: z.string(),
-  title: z.string(),
-  description: z.string(),
+  title: z.string().min(1),
+  description: z.string().min(1),
   maxBudgetSol: z.number().positive(),
-  legs: z
-    .array(z.object({ instruction: z.string() }))
-    .min(1)
-    .max(10),
+  // Legs are optional — if omitted the API plans them via LLM
+  legs: z.array(z.object({ instruction: z.string() })).max(10).optional(),
 });
+
+async function planLegs(title: string, description: string): Promise<Array<{ instruction: string }>> {
+  const llmEndpoint = process.env.LITELLM_ENDPOINT ?? "https://llm-dev.meghsakha.com";
+  const llmModel = process.env.LITELLM_MODEL ?? "gpt-oss-120b";
+  const apiKey = process.env.LITELLM_API_KEY ?? process.env.LLM_API_KEY;
+
+  const prompt = `You are a task planner for a multi-agent AI swarm. Decompose the following goal into 1–4 sequential legs, where each leg is handled by a different AI agent that can only read text and reason — no live internet access.
+
+Task: "${title}"
+Goal: "${description}"
+
+Rules:
+- Use 1 leg if the task is simple and self-contained
+- Use 2–4 legs if sequential specialisation adds value (research → analysis → synthesis, etc.)
+- Each leg instruction must be fully self-contained; later legs should say "building on the previous agent's output"
+- Be specific: tell the agent exactly what to produce and in what format
+
+Respond ONLY with valid JSON, no markdown: {"legs": [{"instruction": "..."}]}`;
+
+  try {
+    const res = await fetch(`${llmEndpoint}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: llmModel,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 4000,
+        temperature: 0.4,
+      }),
+    });
+    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
+    const raw = data.choices[0]?.message?.content ?? "";
+    const json = JSON.parse(raw.replace(/```json|```/g, "").trim()) as { legs: Array<{ instruction: string }> };
+    if (Array.isArray(json.legs) && json.legs.length > 0) return json.legs.slice(0, 4);
+  } catch {
+    // fallback: single leg with the full description
+  }
+  return [{ instruction: `${title}: ${description}` }];
+}
 
 const IdParam = z.object({ id: z.string().uuid() });
 const LegParam = z.object({ id: z.string().uuid(), legId: z.string().uuid() });
@@ -57,6 +97,10 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
     { schema: { body: CreateBody } },
     async (req) => {
       const body = req.body as z.infer<typeof CreateBody>;
+      const legs = (body.legs && body.legs.length > 0)
+        ? body.legs
+        : await planLegs(body.title, body.description);
+
       const task = await prisma.digitalTask.create({
         data: {
           shipperPubkey: body.shipperPubkey,
@@ -64,7 +108,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
           description: body.description,
           maxBudgetSol: body.maxBudgetSol,
           legs: {
-            create: body.legs.map((l, i) => ({
+            create: legs.map((l, i) => ({
               sequence: i,
               instruction: l.instruction,
             })),

@@ -183,7 +183,27 @@ function LegNode({
             </div>
             {leg.result && (
               <div>
-                <div className="label-strong mb-1" style={{ color }}>RESULT</div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="label-strong" style={{ color }}>RESULT</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const blob = new Blob([leg.result!], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `swarmhaul-leg${idx + 1}-result.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 border border-[var(--color-line)] hover:border-[var(--color-steel)] text-[var(--color-steel)] hover:text-[var(--color-bone)] transition-colors text-[9px] tracking-[0.12em]"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M2 10h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    DOWNLOAD
+                  </button>
+                </div>
                 <p className="text-[10px] text-[var(--color-ash)] leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
                   {leg.result}
                 </p>
@@ -276,23 +296,9 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState(0.09);
-  const [legs, setLegs] = useState([
-    { instruction: "" },
-    { instruction: "" },
-    { instruction: "" },
-  ]);
 
   const shipperPubkey = publicKey?.toBase58() ?? "";
-
-  function addLeg() {
-    setLegs((l) => [...l, { instruction: "" }]);
-  }
-  function removeLeg(i: number) {
-    setLegs((l) => l.filter((_, idx) => idx !== i));
-  }
-  function setLegInstruction(i: number, val: string) {
-    setLegs((l) => l.map((leg, idx) => (idx === i ? { instruction: val } : leg)));
-  }
+  const canSubmit = !submitting && title.trim() && description.trim() && !!shipperPubkey;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,7 +308,8 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
       const res = await fetch(`${API}/digital-tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shipperPubkey, title, description, maxBudgetSol: budget, legs }),
+        // No legs — the API plans them via LLM
+        body: JSON.stringify({ shipperPubkey, title, description, maxBudgetSol: budget }),
       });
       if (!res.ok) throw new Error(await res.text());
       const task = await res.json() as DigitalTask;
@@ -321,15 +328,10 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
     setTitle("");
     setDescription("");
     setBudget(0.09);
-    setLegs([{ instruction: "" }, { instruction: "" }, { instruction: "" }]);
   }
-
-  const filledLegs = legs.filter((l) => l.instruction.trim()).length;
-  const canSubmit = !submitting && title.trim() && description.trim() && filledLegs >= 1 && !!shipperPubkey;
 
   return (
     <div className="border border-[var(--color-line)] bg-[var(--color-graphite)]">
-      {/* Toggle header */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -338,7 +340,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
         <div className="flex items-center gap-3">
           <span className="text-[var(--color-cyan)] text-[11px] font-bold tracking-[0.16em]">▸ POST DIGITAL TASK</span>
           <span className="text-[9px] text-[var(--color-steel)] tracking-[0.12em]">
-            MULTI-LEG · MCP AGENTS BID INSTANTLY
+            SWARM PLANS ITS OWN LEGS · AGENTS BID INSTANTLY
           </span>
         </div>
         <span className="text-[var(--color-ash)] text-[11px]">{open ? "▲" : "▼"}</span>
@@ -356,7 +358,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                 </span>
               ) : (
                 <span className="text-[11px] text-[var(--color-steel)]">
-                  Connect wallet to post — your pubkey becomes the task shipper
+                  Connect wallet — your pubkey becomes the task shipper
                 </span>
               )}
             </div>
@@ -369,40 +371,51 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                 ◉ TASK POSTED — {done.id.slice(0, 8)}
               </div>
               <div className="text-[10px] text-[var(--color-steel)]">
-                {done.legs.length} legs open · MCP agents notified via push
+                Swarm planned {done.legs.length} leg{done.legs.length !== 1 ? "s" : ""} · agents notified
               </div>
-              <button type="button" onClick={reset} className="btn-ghost text-[10px] mt-1">
+              <div className="space-y-1 mt-2">
+                {done.legs.map((leg, i) => (
+                  <div key={leg.id} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
+                    <span style={{ color: LEG_COLORS[i % LEG_COLORS.length] }} className="font-bold shrink-0">
+                      L{i + 1}
+                    </span>
+                    <span className="truncate">{leg.instruction.slice(0, 80)}{leg.instruction.length > 80 ? "…" : ""}</span>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={reset} className="btn-ghost text-[10px] mt-2">
                 POST ANOTHER ▸
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Title */}
               <div>
                 <label className="label block mb-1.5">TASK TITLE</label>
                 <input
                   className="input w-full"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Influencer Intelligence: @levelsio"
+                  placeholder="e.g. Market analysis: autonomous drone delivery in the EU"
                   required
                 />
               </div>
 
-              {/* Description */}
               <div>
-                <label className="label block mb-1.5">DESCRIPTION / FINAL GOAL</label>
+                <label className="label block mb-1.5">GOAL DESCRIPTION</label>
                 <textarea
                   className="input w-full resize-none"
-                  rows={3}
+                  rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What the completed swarm should produce overall"
+                  placeholder="Describe what the swarm should produce. The system will plan the legs automatically — deciding whether one agent or several are needed."
                   required
                 />
+                <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-[var(--color-steel)]">
+                  <span style={{ color: "var(--color-phosphor)" }}>◈</span>
+                  <span>AI PLANNER will decompose this into 1–4 legs based on complexity</span>
+                </div>
               </div>
 
-              {/* Budget */}
               <div>
                 <div className="flex items-baseline justify-between mb-1.5">
                   <label className="label">TOTAL BUDGET</label>
@@ -429,52 +442,6 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                 </div>
               </div>
 
-              {/* Legs */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="label">LEGS — AGENT INSTRUCTIONS</label>
-                  <span className="text-[9px] text-[var(--color-steel)]">
-                    {filledLegs}/{legs.length} filled · each leg goes to a different agent
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {legs.map((leg, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <div
-                        className="w-5 h-5 flex items-center justify-center text-[9px] font-bold shrink-0 mt-2"
-                        style={{ color: LEG_COLORS[i % LEG_COLORS.length], border: `1px solid ${LEG_COLORS[i % LEG_COLORS.length]}` }}
-                      >
-                        {i + 1}
-                      </div>
-                      <textarea
-                        className="input flex-1 resize-none text-[11px]"
-                        rows={2}
-                        value={leg.instruction}
-                        onChange={(e) => setLegInstruction(i, e.target.value)}
-                        placeholder={`Instruction for agent ${i + 1}…`}
-                      />
-                      {legs.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeLeg(i)}
-                          className="text-[var(--color-ash)] hover:text-[var(--color-magenta)] text-[14px] mt-2 shrink-0"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={addLeg}
-                  disabled={legs.length >= 8}
-                  className="btn-ghost text-[10px] mt-2"
-                >
-                  + ADD LEG
-                </button>
-              </div>
-
               {error && (
                 <div className="text-[10px] p-3 border border-[var(--color-blood)] text-[var(--color-bone)]">
                   <span className="text-[var(--color-blood)] font-bold mr-2">✕</span>{error}
@@ -482,15 +449,11 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
               )}
 
               <div className="flex items-center gap-4 pt-2 border-t border-[var(--color-line)]">
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="btn-primary"
-                >
-                  {submitting ? "POSTING…" : "▸ DISPATCH DIGITAL TASK"}
+                <button type="submit" disabled={!canSubmit} className="btn-primary">
+                  {submitting ? "PLANNING + DISPATCHING…" : "▸ DISPATCH TO SWARM"}
                 </button>
                 <span className="text-[9px] text-[var(--color-steel)] tracking-[0.12em] uppercase">
-                  {filledLegs} LEG{filledLegs !== 1 ? "S" : ""} · {budget} SOL BUDGET
+                  {budget} SOL BUDGET
                 </span>
               </div>
             </form>
