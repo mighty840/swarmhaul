@@ -176,30 +176,27 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "swarmhaul_post_digital_task",
     description:
-      "Post a multi-leg digital task to the SwarmHaul marketplace. Each leg is an independent unit of work that a different agent completes. Agents receive push notifications and can bid on open legs. The result of each leg is passed as context to the next.",
+      "Post a digital task to the SwarmHaul marketplace. Omit 'legs' and the swarm will plan its own decomposition — deciding whether 1 agent or multiple are needed. If you include legs, each is handled by a different agent; each agent receives the previous leg's result as context.",
     inputSchema: {
       type: "object",
       properties: {
         shipperPubkey: { type: "string", description: "Your Solana pubkey (task poster)" },
-        title: { type: "string", description: "Short task title, e.g. 'Influencer profile: @elonmusk'" },
-        description: { type: "string", description: "Full task description and final output goal" },
-        maxBudgetSol: { type: "number", description: "Total budget in SOL split across all legs" },
+        title: { type: "string", description: "Short task title" },
+        description: { type: "string", description: "Full goal description — the swarm will plan legs automatically if you omit them" },
+        maxBudgetSol: { type: "number", description: "Total budget in SOL" },
         legs: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              instruction: {
-                type: "string",
-                description: "Exact instruction for this leg's agent. Be specific about what to research/produce and what format to return.",
-              },
+              instruction: { type: "string", description: "Exact instruction for this leg's agent" },
             },
             required: ["instruction"],
           },
-          description: "Ordered list of leg instructions. Each agent receives the previous leg's result as context.",
+          description: "Optional: explicit leg instructions. Omit to let the swarm plan its own breakdown.",
         },
       },
-      required: ["shipperPubkey", "title", "description", "maxBudgetSol", "legs"],
+      required: ["shipperPubkey", "title", "description", "maxBudgetSol"],
     },
   },
   {
