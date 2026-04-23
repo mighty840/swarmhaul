@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { DigitalTask, DigitalLeg, WSEvent } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
 
@@ -287,28 +288,46 @@ function TaskCard({ task, defaultOpen = false }: { task: DigitalTask; defaultOpe
 }
 
 function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
-  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
+  const { publicKey, connected, signMessage } = useWallet();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<DigitalTask | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [balanceSol, setBalanceSol] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState(0.09);
 
   const shipperPubkey = publicKey?.toBase58() ?? "";
-  const canSubmit = !submitting && title.trim() && description.trim() && !!shipperPubkey;
+  const canSubmit = !submitting && title.trim() && !!shipperPubkey;
+
+  const refreshBalance = useCallback(async () => {
+    if (!publicKey) { setBalanceSol(null); return; }
+    try {
+      const lamports = await connection.getBalance(publicKey, "confirmed");
+      setBalanceSol(lamports / LAMPORTS_PER_SOL);
+    } catch { setBalanceSol(null); }
+  }, [publicKey, connection]);
+
+  useEffect(() => { refreshBalance(); }, [refreshBalance]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
+      if (!signMessage) throw new Error("Wallet does not support message signing");
+      // Sign a deterministic payload — proves pubkey ownership, costs zero SOL
+      const payload = new TextEncoder().encode(
+        `swarmhaul:post_digital_task:${title}:${Date.now()}`,
+      );
+      await signMessage(payload);
+
       const res = await fetch(`${API}/digital-tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // No legs — the API plans them via LLM
         body: JSON.stringify({ shipperPubkey, title, description, maxBudgetSol: budget }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -350,12 +369,24 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
         <div className="border-t border-[var(--color-line)] p-5 space-y-5">
           {/* Wallet row */}
           <div className="flex items-center justify-between gap-4 p-3 border border-[var(--color-line)] bg-[var(--color-bg)]">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-5 min-w-0">
               <div className={connected ? "dot-live" : "dot-dead"} />
               {connected && publicKey ? (
-                <span className="pubkey text-[12px] text-[var(--color-bone)]">
-                  {publicKey.toBase58().slice(0, 8)}··{publicKey.toBase58().slice(-6)}
-                </span>
+                <>
+                  <div className="min-w-0">
+                    <div className="label-muted mb-0.5">SHIPPER PUBKEY</div>
+                    <div className="pubkey text-[12px] text-[var(--color-bone)]">
+                      {publicKey.toBase58().slice(0, 8)}··{publicKey.toBase58().slice(-6)}
+                    </div>
+                  </div>
+                  <div className="pl-4 border-l border-[var(--color-line)]">
+                    <div className="label-muted mb-0.5">DEVNET BALANCE</div>
+                    <div className="text-[15px] font-light tabular-nums text-[var(--color-phosphor)]">
+                      {balanceSol === null ? "…" : balanceSol.toFixed(4)}{" "}
+                      <span className="text-[9px] text-[var(--color-ash)] font-semibold tracking-[0.14em]">SOL</span>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <span className="text-[11px] text-[var(--color-steel)]">
                   Connect wallet — your pubkey becomes the task shipper
@@ -401,14 +432,16 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
               </div>
 
               <div>
-                <label className="label block mb-1.5">GOAL DESCRIPTION</label>
+                <label className="label block mb-1.5">
+                  GOAL DESCRIPTION
+                  <span className="ml-2 text-[var(--color-ash)] normal-case tracking-normal font-normal">optional</span>
+                </label>
                 <textarea
                   className="input w-full resize-none"
                   rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe what the swarm should produce. The system will plan the legs automatically — deciding whether one agent or several are needed."
-                  required
                 />
                 <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-[var(--color-steel)]">
                   <span style={{ color: "var(--color-phosphor)" }}>◈</span>
