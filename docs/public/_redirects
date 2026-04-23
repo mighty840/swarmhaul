@@ -1,9 +1,2 @@
-# Cloudflare Pages redirect rules
-# Old GitHub Pages path (mighty840.github.io/swarmhaul/*) — can't redirect
-# cross-domain here, but these handle any internal /swarmhaul/ links that
-# slipped through before the link-update pass.
+# Old GitHub Pages path — redirect any /swarmhaul/* links that slipped through.
 /swarmhaul/*  /:splat  301
-
-# SPA fallback — VitePress generates static HTML so this is rarely hit,
-# but keeps direct nav to clean URLs working without 404s.
-/*            /index.html  200
