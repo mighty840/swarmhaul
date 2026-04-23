@@ -15,6 +15,7 @@ import { DigitalTasksView } from "./pages/DigitalTasksView.js";
 function AppShell() {
   const [view, setView] = useState<ViewKey>("economy");
   const [detailPackageId, setDetailPackageId] = useState<string | null>(null);
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [returnView, setReturnView] = useState<ViewKey>("economy");
   const data = useSwarmData();
 
@@ -27,9 +28,15 @@ function AppShell() {
     [view, returnView],
   );
 
+  const openDigitalTask = useCallback((taskId: string) => {
+    setHighlightTaskId(taskId);
+    setView("digital");
+  }, []);
+
   const handleViewChange = useCallback((next: ViewKey) => {
     setView(next);
     if (next !== "swarm-detail") setDetailPackageId(null);
+    if (next !== "digital") setHighlightTaskId(null);
   }, []);
 
   const goBack = useCallback(() => {
@@ -57,6 +64,7 @@ function AppShell() {
             leaderboard={data.leaderboard}
             wsEvents={data.wsEvents}
             onOpenSwarm={openSwarm}
+            onOpenDigitalTask={openDigitalTask}
           />
         )}
         {view === "map" && (
@@ -64,7 +72,7 @@ function AppShell() {
         )}
         {view === "shipper" && <ShipperView />}
         {view === "courier" && <CourierView leaderboard={data.leaderboard} />}
-        {view === "digital" && <DigitalTasksView wsEvents={data.wsEvents} />}
+        {view === "digital" && <DigitalTasksView wsEvents={data.wsEvents} highlightTaskId={highlightTaskId ?? undefined} />}
         {view === "reputation" && <ReputationModelView />}
         {view === "swarm-detail" && detailPackageId && (
           <SwarmDetailView

@@ -208,8 +208,8 @@ function LegNode({
   );
 }
 
-function TaskCard({ task }: { task: DigitalTask }) {
-  const [open, setOpen] = useState(false);
+function TaskCard({ task, defaultOpen = false }: { task: DigitalTask; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const completedLegs = task.legs.filter((l) => l.status === "completed").length;
 
   return (
@@ -501,7 +501,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
   );
 }
 
-export function DigitalTasksView({ wsEvents }: { wsEvents: WSEvent[] }) {
+export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEvent[]; highlightTaskId?: string }) {
   const [tasks, setTasks] = useState<DigitalTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "listed" | "in_progress" | "completed">("all");
@@ -584,7 +584,7 @@ export function DigitalTasksView({ wsEvents }: { wsEvents: WSEvent[] }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((task) => <TaskCard key={task.id} task={task} />)}
+          {filtered.map((task) => <TaskCard key={task.id} task={task} defaultOpen={task.id === highlightTaskId} />)}
         </div>
       )}
 
