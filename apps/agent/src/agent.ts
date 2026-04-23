@@ -11,6 +11,7 @@ import {
   runExecutorPass,
   type ExecutorPackage,
 } from "./executor.js";
+import { runDigitalWorkerPass } from "./digital-worker.js";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -122,6 +123,13 @@ async function main() {
       }
     } catch (err) {
       console.error("[Agent] Poll error:", err);
+    }
+
+    // Digital task worker pass — runs alongside physical package polling
+    try {
+      await runDigitalWorkerPass(agentPubkey, config);
+    } catch (err) {
+      console.error("[Agent] Digital worker error:", err);
     }
 
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
