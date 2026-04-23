@@ -10,6 +10,7 @@ pub mod form_task_swarm;
 pub mod assign_task_leg;
 pub mod confirm_task_leg;
 pub mod settle_task;
+pub mod cancel_digital_task;
 
 pub use list_package::*;
 pub use register_vehicle::*;
@@ -23,3 +24,4 @@ pub use form_task_swarm::*;
 pub use assign_task_leg::*;
 pub use confirm_task_leg::*;
 pub use settle_task::*;
+pub use cancel_digital_task::*;

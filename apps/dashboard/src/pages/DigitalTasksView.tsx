@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
 import type { DigitalTask, DigitalLeg, WSEvent } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
 import { usePostDigitalTask } from "../hooks/usePostDigitalTask.js";
+
+const DISCLAIMER_TEXT =
+  "EXPERIMENTAL SOFTWARE. Posting a task locks real devnet SOL in an on-chain escrow vault. " +
+  "Only you (the shipper) can cancel while the task is in 'listed' status. " +
+  "Once an agent bids and the swarm forms, SOL cannot be recovered until all legs complete. " +
+  "Do not post tasks with SOL you cannot afford to lock for the duration of execution.";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -230,9 +236,58 @@ function LegNode({
   );
 }
 
-function TaskCard({ task, defaultOpen = false }: { task: DigitalTask; defaultOpen?: boolean }) {
+function TaskCard({
+  task,
+  defaultOpen = false,
+  onCancelled,
+}: {
+  task: DigitalTask;
+  defaultOpen?: boolean;
+  onCancelled?: (id: string) => void;
+}) {
   const [open, setOpen] = useState(defaultOpen);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
   const completedLegs = task.legs.filter((l) => l.status === "completed").length;
+  const isOwner = !!publicKey && publicKey.toBase58() === task.shipperPubkey;
+  const canCancel = isOwner && task.status === "listed" && !cancelling;
+
+  const handleCancel = async () => {
+    if (!publicKey || !sendTransaction) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const res = await fetch(`${API}/digital-tasks/${task.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shipperPubkey: publicKey.toBase58() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { transaction, blockhash, lastValidBlockHeight } = await res.json() as {
+        transaction?: string; blockhash?: string; lastValidBlockHeight?: number;
+      };
+
+      if (transaction && blockhash && lastValidBlockHeight) {
+        const txBytes = Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0));
+        const tx = Transaction.from(txBytes);
+        const sig = await sendTransaction(tx, connection, { skipPreflight: true });
+        await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+        await fetch(`${API}/digital-tasks/${task.id}/cancel-confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shipperPubkey: publicKey.toBase58(), signature: sig }),
+        });
+      }
+
+      onCancelled?.(task.id);
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div className="border border-[var(--color-line)] bg-[var(--color-graphite)] hover:border-[var(--color-line-hot)] transition-colors">
@@ -260,6 +315,25 @@ function TaskCard({ task, defaultOpen = false }: { task: DigitalTask; defaultOpe
         </span>
         <span className="text-[var(--color-ash)] text-[10px] shrink-0">{open ? "▲" : "▼"}</span>
       </button>
+
+      {/* Cancel button — only for task owner when listed */}
+      {canCancel && (
+        <div className="px-4 pb-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleCancel(); }}
+            className="text-[9px] font-semibold tracking-[0.14em] px-3 py-1 border transition-colors"
+            style={{ borderColor: "var(--color-blood)", color: "var(--color-blood)" }}
+          >
+            {cancelling ? "CANCELLING…" : "✕ CANCEL TASK & REFUND"}
+          </button>
+        </div>
+      )}
+      {cancelError && (
+        <div className="px-4 pb-2 text-[9px]" style={{ color: "var(--color-blood)" }}>
+          {cancelError}
+        </div>
+      )}
 
       {open && (
         <div className="border-t border-[var(--color-line)]">
@@ -361,6 +435,20 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
 
       {open && (
         <div className="border-t border-[var(--color-line)] p-5 space-y-5">
+          {/* Disclaimer */}
+          <div
+            className="flex items-start gap-3 px-4 py-3 border"
+            style={{ borderColor: "var(--color-amber)", backgroundColor: "rgba(255,170,0,0.06)" }}
+          >
+            <span className="text-[var(--color-amber)] text-[13px] shrink-0 mt-px">⚠</span>
+            <div>
+              <div className="text-[9px] font-bold tracking-[0.16em] text-[var(--color-amber)] mb-1">
+                REAL SOL — READ BEFORE POSTING
+              </div>
+              <p className="text-[10px] text-[var(--color-ash)] leading-relaxed">{DISCLAIMER_TEXT}</p>
+            </div>
+          </div>
+
           {/* Wallet row */}
           <div className="flex items-center justify-between gap-4 p-3 border border-[var(--color-line)] bg-[var(--color-bg)]">
             <div className="flex items-center gap-5 min-w-0">
@@ -766,17 +854,34 @@ export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEv
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch(`${API}/digital-tasks`);
-      setTasks(await res.json() as DigitalTask[]);
+      if (!res.ok) return; // keep existing state on API error
+      const data = await res.json();
+      if (Array.isArray(data)) setTasks(data as DigitalTask[]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  // Initial load + 15-second poll for background freshness
+  useEffect(() => {
+    fetchTasks();
+    const id = setInterval(fetchTasks, 15_000);
+    return () => clearInterval(id);
+  }, [fetchTasks]);
 
   useEffect(() => {
     const last = wsEvents.at(-1);
     if (!last) return;
+    const digitalEvents = new Set([
+      "DIGITAL_TASK_LISTED", "DIGITAL_LEG_ASSIGNED", "DIGITAL_LEG_COMPLETED",
+      "DIGITAL_TASK_COMPLETED", "DIGITAL_TASK_CANCELLED",
+    ]);
+    if (!digitalEvents.has(last.type)) return;
+
+    // Re-fetch the full list so status transitions are always reflected
+    fetchTasks();
+
+    // Also apply optimistic in-place updates so the UI reacts before the round-trip
     if (last.type === "DIGITAL_TASK_LISTED") {
       setTasks((prev) => prev.some((t) => t.id === last.task.id) ? prev : [last.task, ...prev]);
     } else if (last.type === "DIGITAL_LEG_ASSIGNED" || last.type === "DIGITAL_LEG_COMPLETED") {
@@ -790,13 +895,19 @@ export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEv
       );
     } else if (last.type === "DIGITAL_TASK_COMPLETED") {
       setTasks((prev) => prev.map((t) => t.id === last.task.id ? (last.task as DigitalTask) : t));
+    } else if (last.type === "DIGITAL_TASK_CANCELLED") {
+      setTasks((prev) => prev.filter((t) => t.id !== last.taskId));
     }
-  }, [wsEvents]);
+  }, [wsEvents, fetchTasks]);
 
   const filtered = filter === "all" ? tasks : tasks.filter((t) => t.status === filter);
 
   const handlePosted = useCallback((task: DigitalTask) => {
     setTasks((prev) => (prev.some((t) => t.id === task.id) ? prev : [task, ...prev]));
+  }, []);
+
+  const handleCancelled = useCallback((id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   return (
@@ -841,7 +952,14 @@ export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEv
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((task) => <TaskCard key={task.id} task={task} defaultOpen={task.id === highlightTaskId} />)}
+          {filtered.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              defaultOpen={task.id === highlightTaskId}
+              onCancelled={handleCancelled}
+            />
+          ))}
         </div>
       )}
 

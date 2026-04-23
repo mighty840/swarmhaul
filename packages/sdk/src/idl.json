@@ -168,6 +168,58 @@
       ]
     },
     {
+      "name": "cancel_digital_task",
+      "discriminator": [
+        63,
+        173,
+        133,
+        56,
+        23,
+        16,
+        62,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "shipper",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "cancel_package",
       "discriminator": [
         138,
@@ -901,11 +953,20 @@
           "writable": true
         },
         {
+          "name": "platform_wallet",
+          "writable": true
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        }
+      ]
     },
     {
       "name": "update_vehicle",
@@ -1072,6 +1133,19 @@
     }
   ],
   "events": [
+    {
+      "name": "DigitalTaskCancelled",
+      "discriminator": [
+        243,
+        112,
+        167,
+        207,
+        151,
+        24,
+        142,
+        135
+      ]
+    },
     {
       "name": "DigitalTaskListed",
       "discriminator": [
@@ -1245,78 +1319,8 @@
   "errors": [
     {
       "code": 6000,
-      "name": "ZeroBudget",
-      "msg": "Budget must be greater than zero"
-    },
-    {
-      "code": 6001,
-      "name": "InvalidTaskStatus",
-      "msg": "Task must be in Listed status"
-    },
-    {
-      "code": 6002,
-      "name": "UnauthorizedCoordinator",
-      "msg": "Only the task coordinator can manage this task"
-    },
-    {
-      "code": 6003,
-      "name": "ZeroLegs",
-      "msg": "total_legs must be greater than zero"
-    },
-    {
-      "code": 6004,
-      "name": "BudgetExceeded",
-      "msg": "total_lamports exceeds task max_budget_lamports"
-    },
-    {
-      "code": 6005,
-      "name": "SwarmNotForming",
-      "msg": "Task swarm must be in Forming status"
-    },
-    {
-      "code": 6006,
-      "name": "SwarmNotActive",
-      "msg": "Task swarm must be in Active status"
-    },
-    {
-      "code": 6007,
-      "name": "LegsNotComplete",
-      "msg": "All legs must be completed before settlement"
-    },
-    {
-      "code": 6008,
-      "name": "LegIndexOutOfBounds",
-      "msg": "Leg index out of bounds"
-    },
-    {
-      "code": 6009,
-      "name": "AllLegsAssigned",
-      "msg": "All leg slots already assigned"
-    },
-    {
-      "code": 6010,
-      "name": "LegAlreadyConfirmed",
-      "msg": "This leg has already been confirmed"
-    },
-    {
-      "code": 6011,
-      "name": "NotAssignedAgent",
-      "msg": "Agent does not match the leg's assigned agent"
-    },
-    {
-      "code": 6012,
-      "name": "InsufficientVault",
-      "msg": "Insufficient vault balance for payment"
-    },
-    {
-      "code": 6013,
-      "name": "Overflow",
-      "msg": "Arithmetic overflow"
-    },
-    {
-      "code": 6014,
-      "name": "LegOutOfOrder",
-      "msg": "Legs must be confirmed in strict index order"
+      "name": "NotOwner",
+      "msg": "Only the vehicle owner can update this profile"
     }
   ],
   "types": [
@@ -1411,6 +1415,22 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DigitalTaskCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "refunded_lamports",
+            "type": "u64"
           }
         ]
       }
@@ -1909,6 +1929,10 @@
           },
           {
             "name": "surplus_returned_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "platform_fee_lamports",
             "type": "u64"
           }
         ]

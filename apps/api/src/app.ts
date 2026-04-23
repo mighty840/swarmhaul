@@ -22,6 +22,7 @@ import { mcpRoutes } from "./routes/mcp.js";
 import { devRoutes } from "./routes/dev.js";
 import { didRoutes } from "./routes/did.js";
 import { digitalTaskRoutes } from "./routes/digital-tasks.js";
+import { rewardClaimRoutes } from "./routes/reward-claims.js";
 import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
 
@@ -109,6 +110,7 @@ export async function buildApp(opts?: { logger?: boolean }) {
   await app.register(mcpRoutes, { prefix: "/mcp" });
   await app.register(didRoutes, { prefix: "/did" });
   await app.register(digitalTaskRoutes, { prefix: "/digital-tasks" });
+  await app.register(rewardClaimRoutes, { prefix: "/reward-claims" });
 
   app.get("/.well-known/mcp.json", async () => ({
     mcpVersion: "1.0",

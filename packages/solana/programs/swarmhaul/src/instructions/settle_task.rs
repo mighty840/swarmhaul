@@ -23,7 +23,7 @@ pub struct SettleTask<'info> {
     )]
     pub task_account: Account<'info, DigitalTaskAccount>,
 
-    /// CHECK: PDA vault — surplus returned to shipper
+    /// CHECK: PDA vault — surplus returned to shipper after optional platform fee
     #[account(
         mut,
         seeds = [b"dvault", task_account.key().as_ref()],
@@ -31,17 +31,26 @@ pub struct SettleTask<'info> {
     )]
     pub vault: SystemAccount<'info>,
 
-    /// CHECK: original shipper receives vault surplus + swarm account rent
+    /// CHECK: original shipper receives vault surplus (minus platform fee)
     #[account(
         mut,
         constraint = shipper.key() == task_account.shipper,
     )]
     pub shipper: SystemAccount<'info>,
 
+    /// CHECK: platform wallet receives fee when fee_bps > 0
+    #[account(mut)]
+    pub platform_wallet: SystemAccount<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<SettleTask>) -> Result<()> {
+/// fee_bps: platform fee in basis points (0–10000). Pass 0 for no fee.
+/// When fee_bps > 0 and surplus > 0, fee = surplus * fee_bps / 10000 goes to
+/// platform_wallet; remainder goes to shipper.
+pub fn handler(ctx: Context<SettleTask>, fee_bps: u16) -> Result<()> {
+    require!(fee_bps <= 10_000, DigitalTaskError::InvalidFeeBps);
+
     let task_key = ctx.accounts.task_account.key();
     let vault_bump = ctx.accounts.task_account.vault_bump;
     let surplus = ctx.accounts.vault.lamports();
@@ -56,24 +65,55 @@ pub fn handler(ctx: Context<SettleTask>) -> Result<()> {
     if surplus > 0 {
         let signer_seeds: &[&[&[u8]]] = &[&[b"dvault", task_key.as_ref(), &[vault_bump]]];
 
-        system_program::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
-                system_program::Transfer {
-                    from: ctx.accounts.vault.to_account_info(),
-                    to: ctx.accounts.shipper.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            surplus,
-        )?;
-    }
+        let fee = if fee_bps > 0 {
+            surplus.saturating_mul(fee_bps as u64) / 10_000
+        } else {
+            0
+        };
+        let shipper_refund = surplus.saturating_sub(fee);
 
-    emit!(TaskSettled {
-        task_swarm: swarm_key,
-        task: task_key,
-        surplus_returned_lamports: surplus,
-    });
+        if fee > 0 {
+            system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::Transfer {
+                        from: ctx.accounts.vault.to_account_info(),
+                        to: ctx.accounts.platform_wallet.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                fee,
+            )?;
+        }
+
+        if shipper_refund > 0 {
+            system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::Transfer {
+                        from: ctx.accounts.vault.to_account_info(),
+                        to: ctx.accounts.shipper.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                shipper_refund,
+            )?;
+        }
+
+        emit!(TaskSettled {
+            task_swarm: swarm_key,
+            task: task_key,
+            surplus_returned_lamports: shipper_refund,
+            platform_fee_lamports: fee,
+        });
+    } else {
+        emit!(TaskSettled {
+            task_swarm: swarm_key,
+            task: task_key,
+            surplus_returned_lamports: 0,
+            platform_fee_lamports: 0,
+        });
+    }
 
     Ok(())
 }
@@ -83,4 +123,5 @@ pub struct TaskSettled {
     pub task_swarm: Pubkey,
     pub task: Pubkey,
     pub surplus_returned_lamports: u64,
+    pub platform_fee_lamports: u64,
 }

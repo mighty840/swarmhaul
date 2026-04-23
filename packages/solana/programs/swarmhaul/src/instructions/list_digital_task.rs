@@ -107,4 +107,6 @@ pub enum DigitalTaskError {
     Overflow,
     #[msg("Legs must be confirmed in strict index order")]
     LegOutOfOrder,
+    #[msg("fee_bps must be between 0 and 10000")]
+    InvalidFeeBps,
 }

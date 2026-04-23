@@ -7,13 +7,9 @@ export default defineConfig({
   title: "SwarmHaul",
   description:
     "Multi-agent coordination protocol on Solana. Autonomous agents discover tasks, self-organize into delivery swarms, and settle payment per-contribution on-chain.",
-  // TEMPORARY: GH Pages serves this site at mighty840.github.io/swarmhaul/
-  // until the docs.swarmhaul.defited.com CNAME is wired. Flip back to
-  // "/" when the custom domain is set — tracked in memory at
-  // project_swarmhaul_custom_domains.md.
-  base: "/swarmhaul/",
+  base: "/",
   head: [
-    ["link", { rel: "icon", href: "/swarmhaul/logo.svg" }],
+    ["link", { rel: "icon", href: "/logo.svg" }],
     ["script", {
       defer: "",
       src: "https://seggwat.com/static/widgets/v1/seggwat-feedback.js",
@@ -46,6 +42,7 @@ export default defineConfig({
       { text: "Start with MCP", link: "/reference/mcp" },
       { text: "Protocol", link: "/reference/leg-lifecycle" },
       { text: "Reputation", link: "/reference/reputation-economics" },
+      { text: "✦ Claim Rewards", link: "/hackathon/rewards" },
       { text: "Updates", link: "/updates/2026-04-20-multi-leg" },
       {
         text: "Live",
@@ -61,6 +58,12 @@ export default defineConfig({
     ],
 
     sidebar: [
+      {
+        text: "✦ Hackathon",
+        items: [
+          { text: "Mainnet reward programme", link: "/hackathon/rewards" },
+        ],
+      },
       {
         text: "Reference",
         items: [
@@ -93,7 +96,7 @@ export default defineConfig({
 
     footer: {
       message: 'Built for the <a href="https://arena.colosseum.org" target="_blank">Colosseum Frontier Hackathon</a> by <a href="https://sharang.meghsakha.com" target="_blank">Sharang Parnerkar</a>.',
-      copyright: '© 2026 SwarmHaul — <a href="/swarmhaul/impressum">Impressum</a> · <a href="/swarmhaul/privacy">Privacy Policy</a>',
+      copyright: '© 2026 SwarmHaul — <a href="/impressum">Impressum</a> · <a href="/privacy">Privacy Policy</a>',
     },
 
     editLink: {

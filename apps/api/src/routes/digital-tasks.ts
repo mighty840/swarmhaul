@@ -3,10 +3,12 @@ import { z } from "zod";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import {
   buildListDigitalTaskIx,
+  buildCancelDigitalTaskIx,
+  digitalTaskPda,
+  digitalVaultPda,
   coordinatorFormAndAssignTaskSwarm,
   coordinatorConfirmTaskLeg,
   coordinatorSettleTask,
-  digitalTaskPda,
   taskSwarmPda,
   taskLegPda,
   uuidToBytes,
@@ -18,6 +20,20 @@ import { broadcast } from "../services/ws-broadcaster.js";
 import { broadcastMcpNotification } from "../services/mcp-broadcaster.js";
 import { updateReputationOnDigitalLegComplete } from "../services/reputation.js";
 import { getSolana, explorerTxUrl } from "../services/solana.js";
+
+/** Exponential-backoff retry for coordinator RPC calls. */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 500 * 2 ** i));
+    }
+  }
+  throw lastErr;
+}
 
 const CreateBody = z.object({
   shipperPubkey: z.string(),
@@ -296,12 +312,14 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
               paymentLamports: perLegLamports,
             }));
 
-            const { taskSwarm, signature: formSig } = await coordinatorFormAndAssignTaskSwarm(
-              sdk,
-              coordinator,
-              new PublicKey(task.onChainTask),
-              perLegLamports * BigInt(task.legs.length),
-              agents,
+            const { taskSwarm, signature: formSig } = await withRetry(() =>
+              coordinatorFormAndAssignTaskSwarm(
+                sdk,
+                coordinator,
+                new PublicKey(task.onChainTask),
+                perLegLamports * BigInt(task.legs.length),
+                agents,
+              ),
             );
 
             // Derive per-leg PDAs and persist on-chain addresses
@@ -396,13 +414,15 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         // ── On-chain path: confirm_task_leg pays from vault PDA ──
         try {
           const { sdk, coordinator } = getSolana();
-          const confirmSig = await coordinatorConfirmTaskLeg(
-            sdk,
-            coordinator,
-            new PublicKey(task.onChainTask),
-            new PublicKey(task.onChainSwarm),
-            new PublicKey(leg.onChainLeg),
-            new PublicKey(agentPubkey),
+          const confirmSig = await withRetry(() =>
+            coordinatorConfirmTaskLeg(
+              sdk,
+              coordinator,
+              new PublicKey(task.onChainTask),
+              new PublicKey(task.onChainSwarm),
+              new PublicKey(leg.onChainLeg),
+              new PublicKey(agentPubkey),
+            ),
           );
           app.log.info(`[digital] confirm_task_leg tx ${confirmSig} — leg ${leg.sequence} paid`);
         } catch (err) {
@@ -445,12 +465,15 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         if (task.onChainTask && task.onChainSwarm) {
           try {
             const { sdk, coordinator } = getSolana();
-            const settleSig = await coordinatorSettleTask(
-              sdk,
-              coordinator,
-              new PublicKey(task.onChainTask),
-              new PublicKey(task.onChainSwarm),
-              new PublicKey(task.shipperPubkey),
+            const settleSig = await withRetry(() =>
+              coordinatorSettleTask(
+                sdk,
+                coordinator,
+                new PublicKey(task.onChainTask),
+                new PublicKey(task.onChainSwarm),
+                new PublicKey(task.shipperPubkey),
+                0, // feeBps — 0 now, add platform wallet + non-zero bps when converting to commercial
+              ),
             );
             app.log.info(`[digital] settle_task tx ${settleSig} — surplus returned to shipper`);
           } catch (err) {
@@ -473,6 +496,71 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       }
 
       return completed;
+    },
+  );
+
+  // ─── Cancel a task (shipper, Listed status only) ──────────────────
+  // Returns a serialised unsigned cancel_digital_task tx for the shipper to sign.
+  // On-chain: vault fully refunded, task account closed.
+  // Off-chain: task record deleted from DB after confirmation.
+  app.delete(
+    "/:id",
+    { schema: { params: IdParam, body: z.object({ shipperPubkey: z.string() }) } },
+    async (req, reply) => {
+      const { id } = req.params as z.infer<typeof IdParam>;
+      const { shipperPubkey } = req.body as { shipperPubkey: string };
+
+      const task = await prisma.digitalTask.findUnique({ where: { id } });
+      if (!task) return reply.code(404).send({ error: "Task not found" });
+      if (task.shipperPubkey !== shipperPubkey) return reply.code(403).send({ error: "Not your task" });
+      if (task.status !== "listed") return reply.code(409).send({ error: "Only listed tasks can be cancelled" });
+
+      // No on-chain escrow (MCP-created task) — just delete from DB
+      if (!task.onChainTask) {
+        await prisma.digitalTask.delete({ where: { id } });
+        broadcast({ type: "DIGITAL_TASK_CANCELLED", taskId: id } as never);
+        return { cancelled: true };
+      }
+
+      // Build unsigned cancel_digital_task tx for shipper to sign
+      const { sdk } = getSolana();
+      const taskPda = new PublicKey(task.onChainTask);
+      const [vaultPda] = digitalVaultPda(taskPda);
+      const { blockhash, lastValidBlockHeight } = await sdk.connection.getLatestBlockhash();
+
+      const ix = await buildCancelDigitalTaskIx(sdk, {
+        shipper: new PublicKey(shipperPubkey),
+        taskAccount: taskPda,
+      });
+
+      const tx = new Transaction().add(ix);
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new PublicKey(shipperPubkey);
+
+      return {
+        transaction: tx.serialize({ requireAllSignatures: false }).toString("base64"),
+        blockhash,
+        lastValidBlockHeight,
+        taskId: id,
+      };
+    },
+  );
+
+  // ─── Confirm cancel (after shipper signs) ─────────────────────────
+  app.post(
+    "/:id/cancel-confirm",
+    { schema: { params: IdParam, body: z.object({ shipperPubkey: z.string(), signature: z.string() }) } },
+    async (req, reply) => {
+      const { id } = req.params as z.infer<typeof IdParam>;
+      const { shipperPubkey, signature } = req.body as { shipperPubkey: string; signature: string };
+
+      const task = await prisma.digitalTask.findUnique({ where: { id } });
+      if (!task) return reply.code(404).send({ error: "Task not found" });
+      if (task.shipperPubkey !== shipperPubkey) return reply.code(403).send({ error: "Not your task" });
+
+      await prisma.digitalTask.delete({ where: { id } });
+      broadcast({ type: "DIGITAL_TASK_CANCELLED", taskId: id, signature } as never);
+      return { cancelled: true, signature };
     },
   );
 }

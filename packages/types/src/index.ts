@@ -164,4 +164,5 @@ export type WSEvent =
   | { type: "DIGITAL_TASK_LISTED"; task: DigitalTask }
   | { type: "DIGITAL_LEG_ASSIGNED"; taskId: string; leg: DigitalLeg }
   | { type: "DIGITAL_LEG_COMPLETED"; taskId: string; leg: DigitalLeg }
-  | { type: "DIGITAL_TASK_COMPLETED"; task: DigitalTask };
+  | { type: "DIGITAL_TASK_COMPLETED"; task: DigitalTask }
+  | { type: "DIGITAL_TASK_CANCELLED"; taskId: string; signature?: string };

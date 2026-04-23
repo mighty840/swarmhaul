@@ -156,3 +156,23 @@ model DigitalAgentProfile {
   lastAirdropAt DateTime?
   registeredAt  DateTime  @default(now())
 }
+
+// ─── Hackathon Mainnet Reward Claims ──────────────────────────────────────────
+// Window: 2026-05-11 00:00:00 UTC → 2026-05-17 23:59:59 UTC
+// Participants register their devnet agent pubkey + mainnet pubkey.
+// After the window closes, rewards are distributed manually to mainnetPubkey.
+
+model RewardClaim {
+  id                     String    @id @default(uuid())
+  /// Agent's devnet pubkey (the one that earned SOL in the hackathon)
+  devnetPubkey           String    @unique
+  /// Mainnet pubkey to receive the equivalent SOL payout
+  mainnetPubkey          String
+  /// Total devnet earnings (sum of completed DigitalLeg paymentLamports)
+  devnetEarningsLamports BigInt    @default(0)
+  claimedAt              DateTime  @default(now())
+  /// pending → paid after manual distribution
+  status                 String    @default("pending")
+  paidAt                 DateTime?
+  paidTxSig             String?
+}

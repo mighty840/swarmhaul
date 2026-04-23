@@ -542,6 +542,10 @@ export interface SettleTaskArgs {
   taskAccount: PublicKey;
   taskSwarmAccount: PublicKey;
   shipper: PublicKey;
+  /** Platform fee in basis points (0–10000). Pass 0 for no fee. */
+  feeBps: number;
+  /** Wallet that receives the platform fee. Required even when feeBps=0. */
+  platformWallet: PublicKey;
 }
 
 export async function buildSettleTaskIx(
@@ -551,13 +555,36 @@ export async function buildSettleTaskIx(
   const [vPda] = digitalVaultPda(args.taskAccount);
 
   return (sdk.program.methods as any)
-    .settleTask()
+    .settleTask(args.feeBps)
     .accounts({
       coordinator: args.coordinator,
       taskSwarmAccount: args.taskSwarmAccount,
       taskAccount: args.taskAccount,
       vault: vPda,
       shipper: args.shipper,
+      platformWallet: args.platformWallet,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+export interface CancelDigitalTaskArgs {
+  shipper: PublicKey;
+  taskAccount: PublicKey;
+}
+
+export async function buildCancelDigitalTaskIx(
+  sdk: SwarmhaulSDK,
+  args: CancelDigitalTaskArgs,
+): Promise<TransactionInstruction> {
+  const [vPda] = digitalVaultPda(args.taskAccount);
+
+  return (sdk.program.methods as any)
+    .cancelDigitalTask()
+    .accounts({
+      shipper: args.shipper,
+      taskAccount: args.taskAccount,
+      vault: vPda,
       systemProgram: SystemProgram.programId,
     })
     .instruction();
@@ -639,12 +666,16 @@ export async function coordinatorSettleTask(
   taskAccount: PublicKey,
   taskSwarmAccount: PublicKey,
   shipper: PublicKey,
+  feeBps = 0,
+  platformWallet?: PublicKey,
 ): Promise<string> {
   const ix = await buildSettleTaskIx(sdk, {
     coordinator: coordinator.publicKey,
     taskAccount,
     taskSwarmAccount,
     shipper,
+    feeBps,
+    platformWallet: platformWallet ?? coordinator.publicKey,
   });
 
   const tx = new Transaction().add(ix);

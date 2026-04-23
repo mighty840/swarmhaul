@@ -8,6 +8,7 @@ export type ViewKey =
   | "courier"
   | "reputation"
   | "digital"
+  | "claim"
   | "swarm-detail";
 
 interface StatusBarProps {
@@ -30,6 +31,7 @@ const VIEWS: Array<{
   { key: "shipper", label: "DISPATCH", idx: "04" },
   { key: "courier", label: "COURIERS", idx: "05" },
   { key: "reputation", label: "REPUTATION", idx: "06" },
+  { key: "claim", label: "CLAIM REWARDS", idx: "07" },
 ];
 
 export function StatusBar({
@@ -142,16 +144,29 @@ export function StatusBar({
       {/* Nav row */}
       <div className="flex items-center px-4 h-11">
         <div className="flex items-center gap-1">
-          {VIEWS.map(({ key, label, idx }) => (
-            <button
-              key={key}
-              onClick={() => onViewChange(key)}
-              className={`btn-ghost flex items-center gap-2 ${view === key ? "active" : ""}`}
-            >
-              <span className="text-[8px] text-[var(--color-ash)]">{idx}</span>
-              {label}
-            </button>
-          ))}
+          {VIEWS.map(({ key, label, idx }) => {
+            const isClaim = key === "claim";
+            const isActive = view === key;
+            return (
+              <button
+                key={key}
+                onClick={() => onViewChange(key)}
+                className={`btn-ghost flex items-center gap-2 ${isActive ? "active" : ""}`}
+                style={isClaim && !isActive ? {
+                  color: "var(--color-amber)",
+                  borderColor: "rgba(255,170,0,0.35)",
+                } : undefined}
+              >
+                <span
+                  className="text-[8px]"
+                  style={{ color: isClaim && !isActive ? "rgba(255,170,0,0.6)" : "var(--color-ash)" }}
+                >
+                  {isClaim ? "✦" : idx}
+                </span>
+                {label}
+              </button>
+            );
+          })}
           {view === "swarm-detail" && (
             <button className="btn-ghost flex items-center gap-2 active" disabled>
               <span className="text-[8px] text-[var(--color-ash)]">◈</span>

@@ -107,7 +107,11 @@ pub mod swarmhaul {
         instructions::confirm_task_leg::handler(ctx)
     }
 
-    pub fn settle_task(ctx: Context<SettleTask>) -> Result<()> {
-        instructions::settle_task::handler(ctx)
+    pub fn settle_task(ctx: Context<SettleTask>, fee_bps: u16) -> Result<()> {
+        instructions::settle_task::handler(ctx, fee_bps)
+    }
+
+    pub fn cancel_digital_task(ctx: Context<CancelDigitalTask>) -> Result<()> {
+        instructions::cancel_digital_task::handler(ctx)
     }
 }
