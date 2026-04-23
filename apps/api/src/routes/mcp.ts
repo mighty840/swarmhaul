@@ -1,10 +1,13 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { z } from "zod";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  isInitializeRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import { prisma } from "../db/client.js";
 import { MCP_TOOLS, handleMcpToolCall } from "../mcp/tools.js";
@@ -13,8 +16,9 @@ import { addMcpSession, removeMcpSession } from "../services/mcp-broadcaster.js"
 
 type McpBody = z.infer<typeof McpCallBody>;
 
-// Session-keyed transport map so /mcp/messages can route POST bodies.
+// Session maps for both transports
 const sseTransports = new Map<string, SSEServerTransport>();
+const httpTransports = new Map<string, StreamableHTTPServerTransport>();
 
 function buildMcpServer(): Server {
   const server = new Server(
@@ -80,10 +84,89 @@ export async function mcpRoutes(app: FastifyInstance) {
     }
   });
 
-  // ─── SSE transport — GET /mcp/sse ────────────────────────────────────
-  // Establishes the SSE stream. The SDK sends an `endpoint` event pointing
-  // clients to POST their JSON-RPC messages to /mcp/messages?sessionId=<id>.
+  // ─── Streamable HTTP transport (MCP 2025-03-26, recommended) ─────────
+  // Single POST endpoint — works cleanly through reverse proxies.
+  // claude mcp add swarmhaul --transport http https://api.swarmhaul.defited.com/mcp
+  app.post("/", { config: { rawBody: true } }, async (req, reply) => {
+    reply.hijack();
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    if (sessionId) {
+      // Route to existing session
+      const transport = httpTransports.get(sessionId);
+      if (!transport) {
+        reply.raw.writeHead(404, { "Content-Type": "application/json" });
+        reply.raw.end(JSON.stringify({ error: "Session not found or expired" }));
+        return;
+      }
+      await transport.handleRequest(req.raw, reply.raw, req.body);
+      return;
+    }
+
+    // No session-id → must be initialize
+    if (!isInitializeRequest(req.body)) {
+      reply.raw.writeHead(400, { "Content-Type": "application/json" });
+      reply.raw.end(JSON.stringify({ error: "Missing Mcp-Session-Id header for non-init request" }));
+      return;
+    }
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sid) => {
+        httpTransports.set(sid, transport);
+        addMcpSession(sid, server);
+        app.log.info({ sid }, "MCP HTTP session initialized");
+      },
+    });
+
+    const server = buildMcpServer();
+
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) {
+        httpTransports.delete(sid);
+        removeMcpSession(sid);
+        app.log.info({ sid }, "MCP HTTP session closed");
+      }
+    };
+
+    await server.connect(transport);
+    await transport.handleRequest(req.raw, reply.raw, req.body);
+  });
+
+  // GET /mcp — SSE stream for push notifications from an existing HTTP session
+  app.get("/", async (req, reply) => {
+    reply.hijack();
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    const transport = sessionId ? httpTransports.get(sessionId) : undefined;
+    if (!transport) {
+      reply.raw.writeHead(400, { "Content-Type": "application/json" });
+      reply.raw.end(JSON.stringify({ error: "Invalid or missing Mcp-Session-Id" }));
+      return;
+    }
+    await transport.handleRequest(req.raw, reply.raw);
+  });
+
+  // DELETE /mcp — terminate session
+  app.delete("/", async (req, reply) => {
+    reply.hijack();
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    const transport = sessionId ? httpTransports.get(sessionId) : undefined;
+    if (!transport) {
+      reply.raw.writeHead(404, { "Content-Type": "application/json" });
+      reply.raw.end(JSON.stringify({ error: "Session not found" }));
+      return;
+    }
+    await transport.close();
+    reply.raw.writeHead(200).end();
+  });
+
+  // ─── Legacy SSE transport (MCP 2024-11-05) ───────────────────────────
+  // Kept for backward compat. Note: requires Caddy flush_interval -1 to
+  // work through a reverse proxy (see deployment docs).
+  // claude mcp add swarmhaul --transport sse https://api.swarmhaul.defited.com/mcp/sse
   app.get("/sse", async (req, reply) => {
+    reply.hijack();
     const transport = new SSEServerTransport("/mcp/messages", reply.raw);
     const server = buildMcpServer();
     const { sessionId } = transport;
@@ -103,12 +186,9 @@ export async function mcpRoutes(app: FastifyInstance) {
     await server.connect(transport);
     app.log.info({ sessionId }, "MCP SSE session connected");
 
-    // Hold the connection open until the client disconnects.
     await new Promise<void>((resolve) => reply.raw.on("close", resolve));
   });
 
-  // ─── SSE transport — POST /mcp/messages ──────────────────────────────
-  // Client sends JSON-RPC tool calls here; we route to the right transport.
   app.post("/messages", async (req, reply) => {
     const sessionId = (req.query as Record<string, string>).sessionId;
     const transport = sessionId ? sseTransports.get(sessionId) : undefined;

@@ -70,7 +70,9 @@ export async function buildApp(opts?: { logger?: boolean }) {
       req.url === "/ws" ||
       req.url.startsWith("/ws?") ||
       req.url === "/mcp/sse" ||
-      req.url.startsWith("/mcp/messages"),
+      req.url.startsWith("/mcp/messages") ||
+      req.url === "/mcp" ||
+      req.url.startsWith("/mcp?"),
     keyGenerator: (req: FastifyRequest): string =>
       (req.headers["x-forwarded-for"] as string | undefined)
         ?.split(",")[0]
@@ -113,8 +115,8 @@ export async function buildApp(opts?: { logger?: boolean }) {
     name: "SwarmHaul",
     description: "Multi-agent digital task coordination on Solana. Earn devnet SOL by completing task legs. No account creation needed.",
     server: {
-      transport: "sse",
-      url: "https://api.swarmhaul.defited.com/mcp/sse",
+      transport: "http",
+      url: "https://api.swarmhaul.defited.com/mcp",
     },
     tools: ["swarmhaul_register_agent", "swarmhaul_post_digital_task", "swarmhaul_list_digital_tasks", "swarmhaul_bid_digital_leg", "swarmhaul_complete_digital_leg"],
     icon: "https://api.swarmhaul.defited.com/logo.svg",
