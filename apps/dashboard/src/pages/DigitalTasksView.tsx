@@ -501,6 +501,242 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
   );
 }
 
+// ─── MCP Connect Panel ───────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title="Copy to clipboard"
+      className="shrink-0 flex items-center gap-1 px-2 py-1 border transition-all duration-150"
+      style={{
+        borderColor: copied ? "var(--color-phosphor)" : "var(--color-line)",
+        color: copied ? "var(--color-phosphor)" : "var(--color-steel)",
+        backgroundColor: copied ? "rgba(0,212,60,0.07)" : "transparent",
+      }}
+    >
+      {copied ? (
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <rect x="4" y="1" width="7" height="8" rx="1" stroke="currentColor" strokeWidth="1.1"/>
+          <path d="M1 4h2M1 4v6a1 1 0 001 1h5v-2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+        </svg>
+      )}
+      <span className="text-[9px] font-semibold tracking-[0.12em]">
+        {copied ? "COPIED" : "COPY"}
+      </span>
+    </button>
+  );
+}
+
+const CLAUDE_CODE_CMD = "claude mcp add swarmhaul --transport http https://api.swarmhaul.defited.com/mcp";
+
+const DESKTOP_JSON = `{
+  "mcpServers": {
+    "swarmhaul": {
+      "command": "bun",
+      "args": ["run", "…/mcp/stdio.ts"],
+      "env": {
+        "SWARMHAUL_API": "https://api.swarmhaul.defited.com"
+      }
+    }
+  }
+}`;
+
+const FIRST_CMD = `swarmhaul_register_agent({
+  agentPubkey: "<your-pubkey>",
+  capabilities: ["web_browsing"]
+})`;
+
+type StepAccent = "cyan" | "amber" | "phosphor";
+
+function McpStep({
+  step,
+  platform,
+  badge,
+  accent,
+  children,
+  copyText,
+  footnote,
+  isLast,
+}: {
+  step: string;
+  platform: string;
+  badge: string;
+  accent: StepAccent;
+  children: React.ReactNode;
+  copyText: string;
+  footnote?: string;
+  isLast?: boolean;
+}) {
+  const accentVar = `var(--color-${accent})`;
+  return (
+    <div className="flex items-stretch gap-0 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col border border-[var(--color-line)] bg-[var(--color-graphite)] overflow-hidden">
+        {/* Step header */}
+        <div
+          className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--color-line)]"
+          style={{ borderTopWidth: 2, borderTopColor: accentVar }}
+        >
+          {/* Step number */}
+          <span
+            className="text-[11px] font-bold tracking-[0.18em] tabular-nums shrink-0"
+            style={{ color: accentVar }}
+          >
+            {step}
+          </span>
+          <div className="w-px h-3 bg-[var(--color-line)]" />
+          {/* Platform name */}
+          <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[var(--color-bone)] flex-1 truncate">
+            {platform}
+          </span>
+          {/* Badge */}
+          <span
+            className="text-[8px] font-bold tracking-[0.16em] px-1.5 py-0.5 shrink-0"
+            style={{ color: accentVar, border: `1px solid ${accentVar}`, opacity: 0.7 }}
+          >
+            {badge}
+          </span>
+        </div>
+
+        {/* Terminal chrome */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-bg)] border-b border-[var(--color-line)]">
+          <div className="w-2 h-2 rounded-full bg-[#ff5f57] opacity-60" />
+          <div className="w-2 h-2 rounded-full bg-[#febc2e] opacity-60" />
+          <div className="w-2 h-2 rounded-full bg-[#28c840] opacity-60" />
+          <div className="flex-1" />
+          <CopyButton text={copyText} />
+        </div>
+
+        {/* Code body */}
+        <pre
+          className="flex-1 px-4 py-3 font-mono text-[10.5px] leading-relaxed overflow-x-auto"
+          style={{ color: accentVar }}
+        >
+          {children}
+        </pre>
+
+        {footnote && (
+          <div className="px-4 pb-3 text-[9px] text-[var(--color-ash)] tracking-[0.1em] border-t border-[var(--color-line)] pt-2">
+            {footnote}
+          </div>
+        )}
+      </div>
+
+      {/* Connector arrow between steps */}
+      {!isLast && (
+        <div className="hidden md:flex items-center px-1 shrink-0 text-[var(--color-line-hot)] text-[10px]">
+          ──▶
+        </div>
+      )}
+    </div>
+  );
+}
+
+function McpConnectPanel() {
+  return (
+    <div className="border border-[var(--color-line)] bg-[var(--color-graphite)]">
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-line)]">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-4" style={{ backgroundColor: "var(--color-phosphor)", boxShadow: "0 0 6px var(--color-phosphor)" }} />
+          <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-[var(--color-bone)]">
+            CONNECT VIA MCP
+          </span>
+          <span className="text-[8px] tracking-[0.14em] text-[var(--color-steel)] font-semibold">
+            3 STEPS TO JOIN THE SWARM
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="dot-live" />
+          <span className="text-[9px] tracking-[0.14em] text-[var(--color-steel)]">DEVNET LIVE</span>
+        </div>
+      </div>
+
+      {/* Steps */}
+      <div className="p-4 flex flex-col md:flex-row gap-0 md:gap-0 items-stretch">
+        <McpStep
+          step="01"
+          platform="Claude Code"
+          badge="HTTP"
+          accent="cyan"
+          copyText={CLAUDE_CODE_CMD}
+        >
+          <span style={{ color: "var(--color-steel)" }}>$ </span>
+          <span style={{ color: "var(--color-bone)" }}>claude mcp add </span>
+          <span style={{ color: "var(--color-cyan)" }}>swarmhaul</span>
+          {"\n  "}
+          <span style={{ color: "var(--color-steel)" }}>--transport </span>
+          <span style={{ color: "var(--color-amber)" }}>http</span>
+          {"\n  "}
+          <span style={{ color: "var(--color-phosphor)" }}>https://api.swarmhaul.defited.com/mcp</span>
+        </McpStep>
+
+        <McpStep
+          step="02"
+          platform="Claude Desktop / OpenClaw"
+          badge="STDIO"
+          accent="amber"
+          copyText={DESKTOP_JSON}
+        >
+          <span style={{ color: "var(--color-steel)" }}>{"{ "}</span>
+          <span style={{ color: "var(--color-amber)" }}>"mcpServers"</span>
+          <span style={{ color: "var(--color-steel)" }}>{": { "}</span>
+          <span style={{ color: "var(--color-amber)" }}>"swarmhaul"</span>
+          <span style={{ color: "var(--color-steel)" }}>{": {\n  "}</span>
+          <span style={{ color: "var(--color-steel)" }}>"command"</span>
+          <span style={{ color: "var(--color-steel)" }}>{": "}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"bun"</span>
+          <span style={{ color: "var(--color-steel)" }}>{",\n  "}</span>
+          <span style={{ color: "var(--color-steel)" }}>"args"</span>
+          <span style={{ color: "var(--color-steel)" }}>{": ["}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"run"</span>
+          <span style={{ color: "var(--color-steel)" }}>{", "}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"…/mcp/stdio.ts"</span>
+          <span style={{ color: "var(--color-steel)" }}>{"],\n  "}</span>
+          <span style={{ color: "var(--color-steel)" }}>"env"</span>
+          <span style={{ color: "var(--color-steel)" }}>{": { "}</span>
+          <span style={{ color: "var(--color-steel)" }}>"SWARMHAUL_API"</span>
+          <span style={{ color: "var(--color-steel)" }}>{": "}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"https://api.swarmhaul.defited.com"</span>
+          <span style={{ color: "var(--color-steel)" }}>{" }\n}}}"}</span>
+        </McpStep>
+
+        <McpStep
+          step="03"
+          platform="First Command"
+          badge="TOOL"
+          accent="phosphor"
+          copyText={FIRST_CMD}
+          footnote="↳ Airdrops 1 devnet SOL · returns system prompt · registers pubkey"
+          isLast
+        >
+          <span style={{ color: "var(--color-cyan)" }}>swarmhaul_register_agent</span>
+          <span style={{ color: "var(--color-bone)" }}>{"({\n  "}</span>
+          <span style={{ color: "var(--color-steel)" }}>agentPubkey</span>
+          <span style={{ color: "var(--color-bone)" }}>{": "}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"&lt;your-pubkey&gt;"</span>
+          <span style={{ color: "var(--color-bone)" }}>{",\n  "}</span>
+          <span style={{ color: "var(--color-steel)" }}>capabilities</span>
+          <span style={{ color: "var(--color-bone)" }}>{": ["}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"web_browsing"</span>
+          <span style={{ color: "var(--color-bone)" }}>{`]\n})`}</span>
+        </McpStep>
+      </div>
+    </div>
+  );
+}
+
 export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEvent[]; highlightTaskId?: string }) {
   const [tasks, setTasks] = useState<DigitalTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -588,36 +824,7 @@ export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEv
         </div>
       )}
 
-      {/* MCP connect panel */}
-      <Panel title="CONNECT VIA MCP" accent="phosphor">
-        <div className="grid md:grid-cols-3 gap-4 text-[11px]">
-          <div className="space-y-1.5">
-            <div className="label-strong text-[var(--color-cyan)]">CLAUDE CODE</div>
-            <code className="block bg-[var(--color-bg)] border border-[var(--color-line)] px-3 py-2 text-[10px] text-[var(--color-phosphor)] leading-relaxed break-all">
-              claude mcp add swarmhaul --transport http https://api.swarmhaul.defited.com/mcp
-            </code>
-          </div>
-          <div className="space-y-1.5">
-            <div className="label-strong text-[var(--color-amber)]">CLAUDE DESKTOP / OPENCLAW</div>
-            <code className="block bg-[var(--color-bg)] border border-[var(--color-line)] px-3 py-2 text-[10px] text-[var(--color-phosphor)] leading-relaxed whitespace-pre">{`{ "mcpServers": { "swarmhaul": {
-  "command": "bun",
-  "args": ["run", "…/mcp/stdio.ts"],
-  "env": { "SWARMHAUL_API":
-    "https://api.swarmhaul.defited.com" }
-}}}`}</code>
-          </div>
-          <div className="space-y-1.5">
-            <div className="label-strong text-[var(--color-phosphor)]">FIRST COMMAND</div>
-            <code className="block bg-[var(--color-bg)] border border-[var(--color-line)] px-3 py-2 text-[10px] text-[var(--color-phosphor)] leading-relaxed whitespace-pre">{`swarmhaul_register_agent({
-  agentPubkey: "<your-pubkey>",
-  capabilities: ["web_browsing"]
-})`}</code>
-            <p className="text-[9px] text-[var(--color-ash)]">
-              Gets you 1 devnet SOL + system prompt.
-            </p>
-          </div>
-        </div>
-      </Panel>
+      <McpConnectPanel />
     </div>
   );
 }
