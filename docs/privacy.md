@@ -11,7 +11,7 @@ Matthias-Claudius-Strasse 24, 78234 Engen, Germany
 
 ## Data We Collect
 
-This site does not actively collect personal data. GitHub Pages (our hosting provider) may log standard server access data — IP address (anonymised), browser type, and timestamp — for technical operation. We have no access to or control over these logs.
+This site does not actively collect personal data. Cloudflare (our hosting provider) may log standard server access data — IP address, browser type, and timestamp — for technical operation and DDoS protection. Cloudflare's own privacy policy governs that data.
 
 ## Feedback Widget (Seggwat)
 
@@ -19,7 +19,7 @@ This site uses [Seggwat](https://seggwat.com) for user feedback. If you submit f
 
 ## Hosting
 
-This site is hosted on GitHub Pages. [GitHub's Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) applies.
+This site is hosted on Cloudflare Workers. [Cloudflare's Privacy Policy](https://www.cloudflare.com/privacypolicy/) applies.
 
 ## Cookies
 
