@@ -182,12 +182,14 @@ export function EconomyView({
   leaderboard,
   wsEvents,
   onOpenSwarm,
+  onOpenDigitalTask,
 }: {
   stats: EconomyStats | null;
   activity: Activity | null;
   leaderboard: AgentReputation[];
   wsEvents: WSEvent[];
   onOpenSwarm?: (packageId: string) => void;
+  onOpenDigitalTask?: (taskId: string) => void;
 }) {
   if (!stats) {
     return (
@@ -486,7 +488,8 @@ export function EconomyView({
                 return (
                   <tr
                     key={task.id}
-                    className="border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 cursor-default"
+                    onClick={() => onOpenDigitalTask?.(task.id)}
+                    className="border-b border-[var(--color-line)] hover:bg-[var(--color-hover)] last:border-b-0 cursor-pointer"
                   >
                     <td className="py-2.5 px-4 font-mono text-[var(--color-steel)] tabular-nums">
                       {task.id.slice(0, 8)}
@@ -510,6 +513,7 @@ export function EconomyView({
                         <span className="ml-2 text-[9px] text-[var(--color-ash)]">
                           {completedLegs}/{task.legs.length} legs
                         </span>
+                        <span className="ml-auto text-[var(--color-ash)] text-[9px]">▸</span>
                       </div>
                     </td>
                     <td className="py-2.5 px-4 text-right text-[var(--color-steel)] tabular-nums">
