@@ -4,6 +4,7 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { DigitalTask, DigitalLeg, WSEvent } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
+import { usePostDigitalTask } from "../hooks/usePostDigitalTask.js";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -287,21 +288,27 @@ function TaskCard({ task, defaultOpen = false }: { task: DigitalTask; defaultOpe
   );
 }
 
+const PHASE_LABEL: Record<string, string> = {
+  planning:           "AI PLANNING LEGS…",
+  "awaiting-signature": "SIGN IN WALLET…",
+  sending:            "BROADCASTING TX…",
+  confirming:         "CONFIRMING ON-CHAIN…",
+  persisting:         "SAVING TASK…",
+};
+
 function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
   const { connection } = useConnection();
-  const { publicKey, connected, signMessage } = useWallet();
+  const { publicKey, connected } = useWallet();
+  const { dispatch, phase, reset: resetPhase } = usePostDigitalTask();
   const [open, setOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<DigitalTask | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [balanceSol, setBalanceSol] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState(0.09);
 
-  const shipperPubkey = publicKey?.toBase58() ?? "";
-  const canSubmit = !submitting && title.trim() && !!shipperPubkey;
+  const isBusy = phase.kind !== "idle" && phase.kind !== "done" && phase.kind !== "error";
+  const canSubmit = !isBusy && title.trim() && connected && !!publicKey;
 
   const refreshBalance = useCallback(async () => {
     if (!publicKey) { setBalanceSol(null); return; }
@@ -313,41 +320,28 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
 
   useEffect(() => { refreshBalance(); }, [refreshBalance]);
 
+  // Refresh balance after a successful dispatch
+  useEffect(() => {
+    if (phase.kind === "done") refreshBalance();
+  }, [phase.kind, refreshBalance]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      if (!signMessage) throw new Error("Wallet does not support message signing");
-      // Sign a deterministic payload — proves pubkey ownership, costs zero SOL
-      const payload = new TextEncoder().encode(
-        `swarmhaul:post_digital_task:${title}:${Date.now()}`,
-      );
-      await signMessage(payload);
-
-      const res = await fetch(`${API}/digital-tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shipperPubkey, title, description, maxBudgetSol: budget }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const task = await res.json() as DigitalTask;
-      setDone(task);
-      onPosted(task);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const result = await dispatch({ title, description, maxBudgetSol: budget });
+    if (result) onPosted(result.task);
   };
 
   function reset() {
-    setDone(null);
-    setError(null);
+    resetPhase();
     setTitle("");
     setDescription("");
     setBudget(0.09);
   }
+
+  const isDone = phase.kind === "done";
+  const doneTask = isDone ? phase.result.task : null;
+  const explorerUrl = isDone ? phase.result.explorerUrl : null;
+  const planLegs = phase.kind === "awaiting-signature" ? phase.legs : (isDone ? doneTask?.legs : null);
 
   return (
     <div className="border border-[var(--color-line)] bg-[var(--color-graphite)]">
@@ -359,7 +353,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
         <div className="flex items-center gap-3">
           <span className="text-[var(--color-cyan)] text-[11px] font-bold tracking-[0.16em]">▸ POST DIGITAL TASK</span>
           <span className="text-[9px] text-[var(--color-steel)] tracking-[0.12em]">
-            SWARM PLANS ITS OWN LEGS · AGENTS BID INSTANTLY
+            SWARM PLANS ITS OWN LEGS · BUDGET LOCKED ON-CHAIN
           </span>
         </div>
         <span className="text-[var(--color-ash)] text-[11px]">{open ? "▲" : "▼"}</span>
@@ -396,16 +390,43 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
             <WalletMultiButton />
           </div>
 
-          {done ? (
+          {/* Leg preview during awaiting-signature */}
+          {planLegs && planLegs.length > 0 && !isDone && (
+            <div className="p-3 border border-[var(--color-line)] bg-[var(--color-bg)] space-y-1.5">
+              <div className="label-strong mb-2" style={{ color: "var(--color-phosphor)" }}>
+                ◈ AI PLANNER — {planLegs.length} LEG{planLegs.length !== 1 ? "S" : ""} PLANNED
+              </div>
+              {planLegs.map((leg, i) => (
+                <div key={i} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
+                  <span style={{ color: LEG_COLORS[i % LEG_COLORS.length] }} className="font-bold shrink-0">
+                    L{i + 1}
+                  </span>
+                  <span>{("instruction" in leg ? leg.instruction : "").slice(0, 100)}{"instruction" in leg && leg.instruction.length > 100 ? "…" : ""}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isDone && doneTask ? (
             <div className="p-4 border border-[var(--color-phosphor)] bg-[var(--color-graphite)] space-y-2">
               <div className="text-[11px] font-semibold text-[var(--color-phosphor)] tracking-[0.12em]">
-                ◉ TASK POSTED — {done.id.slice(0, 8)}
+                ◉ TASK POSTED — {doneTask.id.slice(0, 8)}
               </div>
               <div className="text-[10px] text-[var(--color-steel)]">
-                Swarm planned {done.legs.length} leg{done.legs.length !== 1 ? "s" : ""} · agents notified
+                Swarm planned {doneTask.legs.length} leg{doneTask.legs.length !== 1 ? "s" : ""} · budget deducted · agents notified
               </div>
+              {explorerUrl && (
+                <a
+                  href={explorerUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[9px] text-[var(--color-cyan)] hover:text-[var(--color-bone)] transition-colors tracking-[0.12em]"
+                >
+                  VIEW ON EXPLORER ↗
+                </a>
+              )}
               <div className="space-y-1 mt-2">
-                {done.legs.map((leg, i) => (
+                {doneTask.legs.map((leg, i) => (
                   <div key={leg.id} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
                     <span style={{ color: LEG_COLORS[i % LEG_COLORS.length] }} className="font-bold shrink-0">
                       L{i + 1}
@@ -428,6 +449,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Market analysis: autonomous drone delivery in the EU"
                   required
+                  disabled={isBusy}
                 />
               </div>
 
@@ -442,6 +464,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe what the swarm should produce. The system will plan the legs automatically — deciding whether one agent or several are needed."
+                  disabled={isBusy}
                 />
                 <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-[var(--color-steel)]">
                   <span style={{ color: "var(--color-phosphor)" }}>◈</span>
@@ -460,6 +483,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                       max={10}
                       step={0.01}
                       onChange={(e) => setBudget(+e.target.value)}
+                      disabled={isBusy}
                       className="no-spin bg-transparent border border-[var(--color-line-hot)] focus:border-[var(--color-cyan)] outline-none px-2 py-0.5 text-right tabular-nums font-mono text-[15px] font-semibold w-20 text-[var(--color-cyan)]"
                     />
                     <span className="text-[10px] text-[var(--color-ash)] tracking-[0.14em] font-semibold">SOL</span>
@@ -468,6 +492,7 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                 <input
                   type="range" min={0.01} max={1} step={0.01} value={budget}
                   onChange={(e) => setBudget(+e.target.value)}
+                  disabled={isBusy}
                   className="w-full accent-[var(--color-cyan)]"
                 />
                 <div className="flex justify-between text-[9px] text-[var(--color-ash)] font-mono mt-0.5">
@@ -475,18 +500,18 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                 </div>
               </div>
 
-              {error && (
+              {phase.kind === "error" && (
                 <div className="text-[10px] p-3 border border-[var(--color-blood)] text-[var(--color-bone)]">
-                  <span className="text-[var(--color-blood)] font-bold mr-2">✕</span>{error}
+                  <span className="text-[var(--color-blood)] font-bold mr-2">✕</span>{phase.message}
                 </div>
               )}
 
               <div className="flex items-center gap-4 pt-2 border-t border-[var(--color-line)]">
                 <button type="submit" disabled={!canSubmit} className="btn-primary">
-                  {submitting ? "PLANNING + DISPATCHING…" : "▸ DISPATCH TO SWARM"}
+                  {isBusy ? (PHASE_LABEL[phase.kind] ?? "WORKING…") : "▸ DISPATCH TO SWARM"}
                 </button>
                 <span className="text-[9px] text-[var(--color-steel)] tracking-[0.12em] uppercase">
-                  {budget} SOL BUDGET
+                  {budget} SOL LOCKED IN TREASURY
                 </span>
               </div>
             </form>

@@ -118,15 +118,16 @@ model NegotiationMessage {
 // ─── Digital Task Track ────────────────────────────────────────────────────
 
 model DigitalTask {
-  id            String       @id @default(uuid())
-  shipperPubkey String
-  title         String
-  description   String
-  maxBudgetSol  Float
-  status        String       @default("listed")
-  listedAt      DateTime     @default(now())
-  completedAt   DateTime?
-  legs          DigitalLeg[]
+  id             String       @id @default(uuid())
+  shipperPubkey  String
+  title          String
+  description    String
+  maxBudgetSol   Float
+  status         String       @default("listed")
+  listSignature  String?
+  listedAt       DateTime     @default(now())
+  completedAt    DateTime?
+  legs           DigitalLeg[]
 }
 
 model DigitalLeg {
