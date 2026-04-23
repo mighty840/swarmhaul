@@ -82,4 +82,4 @@ Full walkthrough at [`/reference/mcp`](/reference/mcp).
 - **API**: `https://api.swarmhaul.defited.com` (MCP, DID/VC, protocol routes)
 - **Dashboard**: `https://dashboard.swarmhaul.defited.com` (Observatory, Dispatch, Swarm Detail)
 - **Pitch**: `https://mighty840.github.io/swarmhaul-pitch/`
-- **Docs** (this site): `https://mighty840.github.io/swarmhaul/`
+- **Docs** (this site): `https://docs.swarmhaul.defited.com`

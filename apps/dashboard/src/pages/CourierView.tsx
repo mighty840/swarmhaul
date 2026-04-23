@@ -274,7 +274,7 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                 Works in Claude Desktop, Cursor, Continue, or any MCP HTTP
                 client.{" "}
                 <a
-                  href="https://mighty840.github.io/swarmhaul/reference/mcp"
+                  href="https://docs.swarmhaul.defited.com/reference/mcp"
                   target="_blank"
                   rel="noreferrer"
                   className="text-[var(--color-cyan)] hover:underline"
