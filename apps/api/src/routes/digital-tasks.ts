@@ -1,6 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { Transaction, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import {
+  buildListDigitalTaskIx,
+  coordinatorFormAndAssignTaskSwarm,
+  coordinatorConfirmTaskLeg,
+  coordinatorSettleTask,
+  digitalTaskPda,
+  taskSwarmPda,
+  taskLegPda,
+  uuidToBytes,
+} from "@swarmhaul/sdk";
+import { Transaction } from "@solana/web3.js";
+import { randomUUID } from "node:crypto";
 import { prisma } from "../db/client.js";
 import { broadcast } from "../services/ws-broadcaster.js";
 import { broadcastMcpNotification } from "../services/mcp-broadcaster.js";
@@ -12,7 +24,6 @@ const CreateBody = z.object({
   title: z.string().min(1),
   description: z.string().optional().default(""),
   maxBudgetSol: z.number().positive(),
-  // Legs are optional — if omitted the API plans them via LLM
   legs: z.array(z.object({ instruction: z.string() })).max(10).optional(),
 });
 
@@ -53,7 +64,7 @@ Respond ONLY with valid JSON, no markdown: {"legs": [{"instruction": "..."}]}`;
     const json = JSON.parse(raw.replace(/```json|```/g, "").trim()) as { legs: Array<{ instruction: string }> };
     if (Array.isArray(json.legs) && json.legs.length > 0) return json.legs.slice(0, 4);
   } catch {
-    // fallback: single leg with the full description
+    // fallback
   }
   return [{ instruction: `${title}: ${description}` }];
 }
@@ -84,6 +95,9 @@ const ConfirmBody = z.object({
   description: z.string().optional().default(""),
   maxBudgetSol: z.number().positive(),
   signature: z.string(),
+  taskId: z.string().uuid(),
+  onChainTask: z.string(),
+  onChainVault: z.string(),
   legs: z.array(z.object({ instruction: z.string() })),
 });
 
@@ -96,8 +110,24 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
     });
   });
 
-  // Build a SystemProgram.transfer tx for the shipper to sign.
-  // Also plans legs via LLM so the UI can preview them before the wallet prompt.
+  app.get(
+    "/:id",
+    { schema: { params: IdParam } },
+    async (req, reply) => {
+      const { id } = req.params as z.infer<typeof IdParam>;
+      const task = await prisma.digitalTask.findUnique({
+        where: { id },
+        include: { legs: { orderBy: { sequence: "asc" } } },
+      });
+      if (!task) return reply.code(404).send({ error: "Task not found" });
+      return task;
+    },
+  );
+
+  // ─── Step 1: Build the list_digital_task Anchor instruction ───────
+  // Plans legs via LLM and returns a serialised unsigned transaction for the
+  // shipper's wallet to sign. Uses the Anchor escrow vault, not a plain
+  // coordinator transfer.
   app.post(
     "/build-tx",
     { schema: { body: BuildTxBody } },
@@ -105,32 +135,40 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       const body = req.body as z.infer<typeof BuildTxBody>;
       const { sdk, coordinator } = getSolana();
 
-      const [legs, { blockhash, lastValidBlockHeight }] = await Promise.all([
+      const taskId = randomUUID();
+      const taskIdBytes = uuidToBytes(taskId);
+      const [taskPda] = digitalTaskPda(taskIdBytes);
+
+      const [legs, { blockhash, lastValidBlockHeight }, ixResult] = await Promise.all([
         planLegs(body.title, body.description),
         sdk.connection.getLatestBlockhash(),
+        buildListDigitalTaskIx(sdk, {
+          shipper: new PublicKey(body.shipperPubkey),
+          taskId: taskIdBytes,
+          maxBudgetLamports: BigInt(Math.floor(body.maxBudgetSol * LAMPORTS_PER_SOL)),
+          coordinator: coordinator.publicKey,
+        }),
       ]);
 
-      const tx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: new PublicKey(body.shipperPubkey),
-          toPubkey: coordinator.publicKey,
-          lamports: Math.floor(body.maxBudgetSol * LAMPORTS_PER_SOL),
-        }),
-      );
+      const tx = new Transaction().add(ixResult.ix);
       tx.recentBlockhash = blockhash;
       tx.feePayer = new PublicKey(body.shipperPubkey);
 
       return {
+        taskId,
         legs,
         transaction: tx.serialize({ requireAllSignatures: false }).toString("base64"),
         blockhash,
         lastValidBlockHeight,
-        treasuryPubkey: coordinator.publicKey.toBase58(),
+        onChainTask: ixResult.task.toBase58(),
+        onChainVault: ixResult.vault.toBase58(),
       };
     },
   );
 
-  // Persist a task after the shipper's on-chain transfer is confirmed.
+  // ─── Step 2: Persist after on-chain confirmation ──────────────────
+  // Receives the confirmed signature + pre-planned legs. The task is now
+  // in Listed status on-chain with budget locked in the vault PDA.
   app.post(
     "/confirm",
     { schema: { body: ConfirmBody } },
@@ -139,11 +177,14 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
 
       const task = await prisma.digitalTask.create({
         data: {
+          id: body.taskId,
           shipperPubkey: body.shipperPubkey,
           title: body.title,
           description: body.description,
           maxBudgetSol: body.maxBudgetSol,
           listSignature: body.signature,
+          onChainTask: body.onChainTask,
+          onChainVault: body.onChainVault,
           legs: {
             create: body.legs.map((l, i) => ({
               sequence: i,
@@ -166,20 +207,9 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get(
-    "/:id",
-    { schema: { params: IdParam } },
-    async (req, reply) => {
-      const { id } = req.params as z.infer<typeof IdParam>;
-      const task = await prisma.digitalTask.findUnique({
-        where: { id },
-        include: { legs: { orderBy: { sequence: "asc" } } },
-      });
-      if (!task) return reply.code(404).send({ error: "Task not found" });
-      return task;
-    },
-  );
-
+  // ─── MCP / legacy path (no wallet signature) ─────────────────────
+  // Created by agents via MCP. No on-chain escrow — coordinator pays out
+  // from its own wallet when legs complete (same as before).
   app.post(
     "/",
     { schema: { body: CreateBody } },
@@ -196,10 +226,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
           description: body.description,
           maxBudgetSol: body.maxBudgetSol,
           legs: {
-            create: legs.map((l, i) => ({
-              sequence: i,
-              instruction: l.instruction,
-            })),
+            create: legs.map((l, i) => ({ sequence: i, instruction: l.instruction })),
           },
         },
         include: { legs: { orderBy: { sequence: "asc" } } },
@@ -214,12 +241,12 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
     },
   );
 
-  // Bid on a specific leg (first agent to call wins)
+  // ─── Bid on a leg ─────────────────────────────────────────────────
   app.post(
     "/:id/legs/:legId/bid",
     { schema: { params: LegParam, body: BidBody } },
     async (req, reply) => {
-      const { legId } = req.params as z.infer<typeof LegParam>;
+      const { id: taskId, legId } = req.params as z.infer<typeof LegParam>;
       const { agentPubkey, bidSol } = req.body as z.infer<typeof BidBody>;
 
       const leg = await prisma.digitalLeg.findUnique({ where: { id: legId } });
@@ -239,22 +266,80 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         data: { agentPubkey, bidSol, status: "assigned" },
       });
 
-      // Flip task to in_progress on first assignment
+      // Flip task DB status on first assignment
       await prisma.digitalTask.update({
         where: { id: leg.taskId, status: "listed" },
         data: { status: "in_progress" },
       }).catch(() => {});
 
       broadcast({ type: "DIGITAL_LEG_ASSIGNED", taskId: leg.taskId, leg: updated as never });
+
+      // When ALL legs are now assigned, form the on-chain swarm in one tx
+      const task = await prisma.digitalTask.findUnique({
+        where: { id: taskId },
+        include: { legs: { orderBy: { sequence: "asc" } } },
+      });
+
+      if (task?.onChainTask) {
+        const allAssigned = task.legs.every(
+          (l) => l.status === "assigned" || l.status === "in_progress" || l.status === "completed",
+        );
+
+        if (allAssigned) {
+          try {
+            const { sdk, coordinator } = getSolana();
+            const totalBudgetLamports = BigInt(Math.floor(task.maxBudgetSol * LAMPORTS_PER_SOL));
+            const perLegLamports = totalBudgetLamports / BigInt(task.legs.length);
+
+            const agents = task.legs.map((l) => ({
+              agent: new PublicKey(l.agentPubkey!),
+              paymentLamports: perLegLamports,
+            }));
+
+            const { taskSwarm, signature: formSig } = await coordinatorFormAndAssignTaskSwarm(
+              sdk,
+              coordinator,
+              new PublicKey(task.onChainTask),
+              perLegLamports * BigInt(task.legs.length),
+              agents,
+            );
+
+            // Derive per-leg PDAs and persist on-chain addresses
+            const legUpdates = task.legs.map((l, i) => {
+              const [legPda] = taskLegPda(taskSwarm, i);
+              return prisma.digitalLeg.update({
+                where: { id: l.id },
+                data: {
+                  onChainLeg: legPda.toBase58(),
+                  paymentLamports: perLegLamports,
+                },
+              });
+            });
+
+            await Promise.all([
+              prisma.digitalTask.update({
+                where: { id: taskId },
+                data: { onChainSwarm: taskSwarm.toBase58() },
+              }),
+              ...legUpdates,
+            ]);
+
+            app.log.info(`[digital] task swarm formed on-chain — ${taskSwarm.toBase58()} tx ${formSig}`);
+          } catch (err) {
+            app.log.error({ err }, "[digital] form_task_swarm failed");
+          }
+        }
+      }
+
       await broadcastMcpNotification(
-        `Leg ${updated.sequence + 1} of task "${leg.taskId}" assigned to ${agentPubkey.slice(0, 8)}…`,
+        `Leg ${updated.sequence + 1} of task "${taskId}" assigned to ${agentPubkey.slice(0, 8)}…`,
       );
 
       return updated;
     },
   );
 
-  // Agent signals it has started working on a leg
+  // ─── Agent signals start ──────────────────────────────────────────
   app.post(
     "/:id/legs/:legId/start",
     { schema: { params: LegParam, body: z.object({ agentPubkey: z.string() }) } },
@@ -274,7 +359,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
     },
   );
 
-  // Agent submits completed result
+  // ─── Agent submits completed result ──────────────────────────────
   app.post(
     "/:id/legs/:legId/complete",
     { schema: { params: LegParam, body: CompleteBody } },
@@ -297,16 +382,40 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       broadcast({ type: "DIGITAL_LEG_COMPLETED", taskId, leg: completed as never });
       await updateReputationOnDigitalLegComplete(agentPubkey);
 
-      // Pay the agent their share of the budget from coordinator treasury
-      try {
-        const taskForPay = await prisma.digitalTask.findUnique({ where: { id: taskId } });
-        if (taskForPay) {
+      // Fetch task + all legs for payout logic
+      const task = await prisma.digitalTask.findUnique({
+        where: { id: taskId },
+        include: { legs: { orderBy: { sequence: "asc" } } },
+      });
+
+      if (!task) {
+        return completed;
+      }
+
+      if (task.onChainTask && task.onChainSwarm && leg.onChainLeg) {
+        // ── On-chain path: confirm_task_leg pays from vault PDA ──
+        try {
           const { sdk, coordinator } = getSolana();
-          const legCount = await prisma.digitalLeg.count({ where: { taskId } });
-          const payLamports = Math.floor((taskForPay.maxBudgetSol / legCount) * LAMPORTS_PER_SOL);
+          const confirmSig = await coordinatorConfirmTaskLeg(
+            sdk,
+            coordinator,
+            new PublicKey(task.onChainTask),
+            new PublicKey(task.onChainSwarm),
+            new PublicKey(leg.onChainLeg),
+            new PublicKey(agentPubkey),
+          );
+          app.log.info(`[digital] confirm_task_leg tx ${confirmSig} — leg ${leg.sequence} paid`);
+        } catch (err) {
+          app.log.error({ err }, "[digital] confirm_task_leg failed");
+        }
+      } else if (!task.onChainTask) {
+        // ── Off-chain path (MCP-created tasks): coordinator wallet pays ──
+        try {
+          const { sdk, coordinator } = getSolana();
+          const payLamports = Math.floor((task.maxBudgetSol / task.legs.length) * LAMPORTS_PER_SOL);
           const { blockhash } = await sdk.connection.getLatestBlockhash();
-          const payTx = new Transaction().add(
-            SystemProgram.transfer({
+          const payTx = new (await import("@solana/web3.js")).Transaction().add(
+            (await import("@solana/web3.js")).SystemProgram.transfer({
               fromPubkey: coordinator.publicKey,
               toPubkey: new PublicKey(agentPubkey),
               lamports: payLamports,
@@ -316,33 +425,49 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
           payTx.feePayer = coordinator.publicKey;
           payTx.sign(coordinator);
           const paySig = await sdk.connection.sendRawTransaction(payTx.serialize());
-          app.log.info(`[digital] paid ${payLamports} lamports to ${agentPubkey.slice(0, 8)} — tx ${paySig}`);
+          app.log.info(`[digital] off-chain paid ${payLamports} lamps to ${agentPubkey.slice(0, 8)} tx ${paySig}`);
+        } catch (err) {
+          app.log.error({ err }, "[digital] off-chain payout failed");
         }
-      } catch (err) {
-        app.log.error({ err }, "[digital] agent payout failed");
       }
 
-      // Check if all legs are done
-      const allLegs = await prisma.digitalLeg.findMany({ where: { taskId } });
+      const allLegs = task.legs.map((l) => (l.id === legId ? { ...l, status: "completed" } : l));
+
       if (allLegs.every((l) => l.status === "completed")) {
-        const task = await prisma.digitalTask.update({
+        const finalTask = await prisma.digitalTask.update({
           where: { id: taskId },
           data: { status: "completed", completedAt: new Date() },
           include: { legs: { orderBy: { sequence: "asc" } } },
         });
-        broadcast({ type: "DIGITAL_TASK_COMPLETED", task: task as never });
+        broadcast({ type: "DIGITAL_TASK_COMPLETED", task: finalTask as never });
+
+        // ── On-chain settle: return surplus to shipper ──
+        if (task.onChainTask && task.onChainSwarm) {
+          try {
+            const { sdk, coordinator } = getSolana();
+            const settleSig = await coordinatorSettleTask(
+              sdk,
+              coordinator,
+              new PublicKey(task.onChainTask),
+              new PublicKey(task.onChainSwarm),
+              new PublicKey(task.shipperPubkey),
+            );
+            app.log.info(`[digital] settle_task tx ${settleSig} — surplus returned to shipper`);
+          } catch (err) {
+            app.log.error({ err }, "[digital] settle_task failed");
+          }
+        }
+
         await broadcastMcpNotification(
           `Task "${task.title}" completed by swarm. All ${task.legs.length} legs settled.`,
         );
       } else {
-        // Notify next open leg's potential agents
         const nextLeg = allLegs
           .filter((l) => l.status === "open")
           .sort((a, b) => a.sequence - b.sequence)[0];
         if (nextLeg) {
-          const task = await prisma.digitalTask.findUnique({ where: { id: taskId } });
           await broadcastMcpNotification(
-            `Leg ${nextLeg.sequence + 1} of "${task?.title}" is now open. Previous result available. Call swarmhaul_bid_digital_leg to claim it.`,
+            `Leg ${nextLeg.sequence + 1} of "${task.title}" is now open. Call swarmhaul_bid_digital_leg to claim it.`,
           );
         }
       }

@@ -383,6 +383,281 @@ export async function coordinatorSettleSwarm(
   return signature;
 }
 
+// ─── Digital task PDA derivation ──────────────────────────────────
+
+export function digitalTaskPda(taskId: Uint8Array): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("dtask"), Buffer.from(taskId)],
+    PROGRAM_ID,
+  );
+}
+
+export function digitalVaultPda(taskAccount: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("dvault"), taskAccount.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+export function taskSwarmPda(taskAccount: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("dtswarm"), taskAccount.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+export function taskLegPda(taskSwarmAccount: PublicKey, legIndex: number): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("dtleg"), taskSwarmAccount.toBuffer(), Buffer.from([legIndex])],
+    PROGRAM_ID,
+  );
+}
+
+// ─── Digital task instruction builders ────────────────────────────
+
+export interface ListDigitalTaskArgs {
+  shipper: PublicKey;
+  taskId: Uint8Array;
+  maxBudgetLamports: bigint;
+  coordinator: PublicKey;
+}
+
+export async function buildListDigitalTaskIx(
+  sdk: SwarmhaulSDK,
+  args: ListDigitalTaskArgs,
+): Promise<{ ix: TransactionInstruction; task: PublicKey; vault: PublicKey }> {
+  const [tPda] = digitalTaskPda(args.taskId);
+  const [vPda] = digitalVaultPda(tPda);
+
+  const ix = await (sdk.program.methods as any)
+    .listDigitalTask(
+      Array.from(args.taskId) as any,
+      new BN(args.maxBudgetLamports.toString()),
+      args.coordinator,
+    )
+    .accounts({
+      shipper: args.shipper,
+      taskAccount: tPda,
+      vault: vPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return { ix, task: tPda, vault: vPda };
+}
+
+export interface FormTaskSwarmArgs {
+  coordinator: PublicKey;
+  taskAccount: PublicKey;
+  totalLegs: number;
+  totalLamports: bigint;
+}
+
+export async function buildFormTaskSwarmIx(
+  sdk: SwarmhaulSDK,
+  args: FormTaskSwarmArgs,
+): Promise<{ ix: TransactionInstruction; taskSwarm: PublicKey }> {
+  const [sPda] = taskSwarmPda(args.taskAccount);
+
+  const ix = await (sdk.program.methods as any)
+    .formTaskSwarm(args.totalLegs, new BN(args.totalLamports.toString()))
+    .accounts({
+      coordinator: args.coordinator,
+      taskAccount: args.taskAccount,
+      taskSwarmAccount: sPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return { ix, taskSwarm: sPda };
+}
+
+export interface AssignTaskLegArgs {
+  coordinator: PublicKey;
+  taskAccount: PublicKey;
+  taskSwarmAccount: PublicKey;
+  legIndex: number;
+  agent: PublicKey;
+  paymentLamports: bigint;
+}
+
+export async function buildAssignTaskLegIx(
+  sdk: SwarmhaulSDK,
+  args: AssignTaskLegArgs,
+): Promise<{ ix: TransactionInstruction; taskLeg: PublicKey; reputation: PublicKey }> {
+  const [lPda] = taskLegPda(args.taskSwarmAccount, args.legIndex);
+  const [rPda] = reputationPda(args.agent);
+
+  const ix = await (sdk.program.methods as any)
+    .assignTaskLeg(
+      args.legIndex,
+      args.agent,
+      new BN(args.paymentLamports.toString()),
+    )
+    .accounts({
+      coordinator: args.coordinator,
+      taskAccount: args.taskAccount,
+      taskSwarmAccount: args.taskSwarmAccount,
+      taskLegAccount: lPda,
+      agentReputation: rPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+
+  return { ix, taskLeg: lPda, reputation: rPda };
+}
+
+export interface ConfirmTaskLegArgs {
+  coordinator: PublicKey;
+  agent: PublicKey;
+  taskLegAccount: PublicKey;
+  taskSwarmAccount: PublicKey;
+  taskAccount: PublicKey;
+}
+
+export async function buildConfirmTaskLegIx(
+  sdk: SwarmhaulSDK,
+  args: ConfirmTaskLegArgs,
+): Promise<TransactionInstruction> {
+  const [vPda] = digitalVaultPda(args.taskAccount);
+  const [rPda] = reputationPda(args.agent);
+
+  return (sdk.program.methods as any)
+    .confirmTaskLeg()
+    .accounts({
+      coordinator: args.coordinator,
+      agent: args.agent,
+      taskLegAccount: args.taskLegAccount,
+      taskSwarmAccount: args.taskSwarmAccount,
+      taskAccount: args.taskAccount,
+      vault: vPda,
+      agentReputation: rPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+export interface SettleTaskArgs {
+  coordinator: PublicKey;
+  taskAccount: PublicKey;
+  taskSwarmAccount: PublicKey;
+  shipper: PublicKey;
+}
+
+export async function buildSettleTaskIx(
+  sdk: SwarmhaulSDK,
+  args: SettleTaskArgs,
+): Promise<TransactionInstruction> {
+  const [vPda] = digitalVaultPda(args.taskAccount);
+
+  return (sdk.program.methods as any)
+    .settleTask()
+    .accounts({
+      coordinator: args.coordinator,
+      taskSwarmAccount: args.taskSwarmAccount,
+      taskAccount: args.taskAccount,
+      vault: vPda,
+      shipper: args.shipper,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/**
+ * Coordinator-side: form_task_swarm + N assign_task_leg in one transaction.
+ * Payment per leg = floor(totalLamports / legs.length).
+ */
+export async function coordinatorFormAndAssignTaskSwarm(
+  sdk: SwarmhaulSDK,
+  coordinator: Keypair,
+  taskAccount: PublicKey,
+  totalLamports: bigint,
+  agents: { agent: PublicKey; paymentLamports: bigint }[],
+): Promise<{ taskSwarm: PublicKey; signature: string }> {
+  const formResult = await buildFormTaskSwarmIx(sdk, {
+    coordinator: coordinator.publicKey,
+    taskAccount,
+    totalLegs: agents.length,
+    totalLamports,
+  });
+
+  const assignIxs = await Promise.all(
+    agents.map((a, idx) =>
+      buildAssignTaskLegIx(sdk, {
+        coordinator: coordinator.publicKey,
+        taskAccount,
+        taskSwarmAccount: formResult.taskSwarm,
+        legIndex: idx,
+        agent: a.agent,
+        paymentLamports: a.paymentLamports,
+      }),
+    ),
+  );
+
+  const tx = new Transaction().add(formResult.ix, ...assignIxs.map((a) => a.ix));
+  tx.feePayer = coordinator.publicKey;
+  const { blockhash } = await sdk.connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.sign(coordinator);
+
+  const signature = await sdk.connection.sendRawTransaction(tx.serialize());
+  await sdk.connection.confirmTransaction(signature, "confirmed");
+
+  return { taskSwarm: formResult.taskSwarm, signature };
+}
+
+export async function coordinatorConfirmTaskLeg(
+  sdk: SwarmhaulSDK,
+  coordinator: Keypair,
+  taskAccount: PublicKey,
+  taskSwarmAccount: PublicKey,
+  taskLegAccount: PublicKey,
+  agent: PublicKey,
+): Promise<string> {
+  const ix = await buildConfirmTaskLegIx(sdk, {
+    coordinator: coordinator.publicKey,
+    agent,
+    taskLegAccount,
+    taskSwarmAccount,
+    taskAccount,
+  });
+
+  const tx = new Transaction().add(ix);
+  tx.feePayer = coordinator.publicKey;
+  const { blockhash } = await sdk.connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.sign(coordinator);
+
+  const signature = await sdk.connection.sendRawTransaction(tx.serialize());
+  await sdk.connection.confirmTransaction(signature, "confirmed");
+  return signature;
+}
+
+export async function coordinatorSettleTask(
+  sdk: SwarmhaulSDK,
+  coordinator: Keypair,
+  taskAccount: PublicKey,
+  taskSwarmAccount: PublicKey,
+  shipper: PublicKey,
+): Promise<string> {
+  const ix = await buildSettleTaskIx(sdk, {
+    coordinator: coordinator.publicKey,
+    taskAccount,
+    taskSwarmAccount,
+    shipper,
+  });
+
+  const tx = new Transaction().add(ix);
+  tx.feePayer = coordinator.publicKey;
+  const { blockhash } = await sdk.connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.sign(coordinator);
+
+  const signature = await sdk.connection.sendRawTransaction(tx.serialize());
+  await sdk.connection.confirmTransaction(signature, "confirmed");
+  return signature;
+}
+
 // ─── Loaders ───────────────────────────────────────────────────────
 
 export function loadKeypairFromFile(path: string): Keypair {

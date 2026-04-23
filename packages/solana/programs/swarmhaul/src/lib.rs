@@ -76,4 +76,38 @@ pub mod swarmhaul {
     pub fn cancel_package(ctx: Context<CancelPackage>) -> Result<()> {
         instructions::cancel_package::handler(ctx)
     }
+
+    pub fn list_digital_task(
+        ctx: Context<ListDigitalTask>,
+        task_id: [u8; 16],
+        max_budget_lamports: u64,
+        coordinator: Pubkey,
+    ) -> Result<()> {
+        instructions::list_digital_task::handler(ctx, task_id, max_budget_lamports, coordinator)
+    }
+
+    pub fn form_task_swarm(
+        ctx: Context<FormTaskSwarm>,
+        total_legs: u8,
+        total_lamports: u64,
+    ) -> Result<()> {
+        instructions::form_task_swarm::handler(ctx, total_legs, total_lamports)
+    }
+
+    pub fn assign_task_leg(
+        ctx: Context<AssignTaskLeg>,
+        leg_index: u8,
+        agent: Pubkey,
+        payment_lamports: u64,
+    ) -> Result<()> {
+        instructions::assign_task_leg::handler(ctx, leg_index, agent, payment_lamports)
+    }
+
+    pub fn confirm_task_leg(ctx: Context<ConfirmTaskLeg>) -> Result<()> {
+        instructions::confirm_task_leg::handler(ctx)
+    }
+
+    pub fn settle_task(ctx: Context<SettleTask>) -> Result<()> {
+        instructions::settle_task::handler(ctx)
+    }
 }

@@ -48,12 +48,14 @@ export function usePostDigitalTask() {
         });
         if (!buildRes.ok) throw new Error(`build-tx failed: ${await buildRes.text()}`);
 
-        const { legs, transaction, blockhash, lastValidBlockHeight } = (await buildRes.json()) as {
+        const { taskId, legs, transaction, blockhash, lastValidBlockHeight, onChainTask, onChainVault } = (await buildRes.json()) as {
+          taskId: string;
           legs: Array<{ instruction: string }>;
           transaction: string;
           blockhash: string;
           lastValidBlockHeight: number;
-          treasuryPubkey: string;
+          onChainTask: string;
+          onChainVault: string;
         };
 
         setPhase({ kind: "awaiting-signature", legs });
@@ -84,6 +86,9 @@ export function usePostDigitalTask() {
             shipperPubkey: publicKey.toBase58(),
             ...input,
             signature,
+            taskId,
+            onChainTask,
+            onChainVault,
             legs,
           }),
         });

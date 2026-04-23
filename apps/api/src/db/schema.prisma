@@ -125,23 +125,28 @@ model DigitalTask {
   maxBudgetSol   Float
   status         String       @default("listed")
   listSignature  String?
+  onChainTask    String?
+  onChainVault   String?
+  onChainSwarm   String?
   listedAt       DateTime     @default(now())
   completedAt    DateTime?
   legs           DigitalLeg[]
 }
 
 model DigitalLeg {
-  id           String      @id @default(uuid())
-  taskId       String
-  task         DigitalTask @relation(fields: [taskId], references: [id])
-  sequence     Int
-  instruction  String
-  agentPubkey  String?
-  bidSol       Float?
-  status       String      @default("open")
-  result       String?
-  startedAt    DateTime?
-  completedAt  DateTime?
+  id              String      @id @default(uuid())
+  taskId          String
+  task            DigitalTask @relation(fields: [taskId], references: [id])
+  sequence        Int
+  instruction     String
+  agentPubkey     String?
+  bidSol          Float?
+  paymentLamports BigInt?
+  status          String      @default("open")
+  result          String?
+  onChainLeg      String?
+  startedAt       DateTime?
+  completedAt     DateTime?
 }
 
 model DigitalAgentProfile {

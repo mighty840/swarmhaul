@@ -88,6 +88,86 @@
       ]
     },
     {
+      "name": "assign_task_leg",
+      "discriminator": [
+        167,
+        33,
+        163,
+        59,
+        195,
+        191,
+        0,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task_account"
+        },
+        {
+          "name": "task_swarm_account",
+          "writable": true
+        },
+        {
+          "name": "task_leg_account",
+          "writable": true
+        },
+        {
+          "name": "agent_reputation",
+          "docs": [
+            "Shared reputation PDA — same seeds as physical assign_leg,",
+            "so digital and physical legs all count toward the same score."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "leg_index",
+          "type": "u8"
+        },
+        {
+          "name": "agent",
+          "type": "pubkey"
+        },
+        {
+          "name": "payment_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "cancel_package",
       "discriminator": [
         138,
@@ -251,6 +331,100 @@
       "args": []
     },
     {
+      "name": "confirm_task_leg",
+      "discriminator": [
+        245,
+        107,
+        11,
+        192,
+        20,
+        136,
+        26,
+        111
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "docs": [
+            "Protocol coordinator — trusted oracle that receives AI results via API."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "task_leg_account",
+          "writable": true
+        },
+        {
+          "name": "task_swarm_account",
+          "writable": true
+        },
+        {
+          "name": "task_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent_reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "form_swarm",
       "discriminator": [
         72,
@@ -307,6 +481,156 @@
         {
           "name": "total_lamports",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "form_task_swarm",
+      "discriminator": [
+        134,
+        254,
+        221,
+        121,
+        44,
+        110,
+        124,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task_account",
+          "writable": true
+        },
+        {
+          "name": "task_swarm_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  116,
+                  115,
+                  119,
+                  97,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "total_legs",
+          "type": "u8"
+        },
+        {
+          "name": "total_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "list_digital_task",
+      "discriminator": [
+        119,
+        76,
+        123,
+        205,
+        242,
+        185,
+        86,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "shipper",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        },
+        {
+          "name": "max_budget_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "coordinator",
+          "type": "pubkey"
         }
       ]
     },
@@ -524,6 +848,66 @@
       "args": []
     },
     {
+      "name": "settle_task",
+      "discriminator": [
+        128,
+        27,
+        215,
+        43,
+        26,
+        28,
+        251,
+        9
+      ],
+      "accounts": [
+        {
+          "name": "coordinator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task_swarm_account",
+          "writable": true
+        },
+        {
+          "name": "task_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shipper",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "update_vehicle",
       "discriminator": [
         114,
@@ -596,6 +980,19 @@
       ]
     },
     {
+      "name": "DigitalTaskAccount",
+      "discriminator": [
+        152,
+        73,
+        85,
+        20,
+        96,
+        245,
+        32,
+        111
+      ]
+    },
+    {
       "name": "LegAccount",
       "discriminator": [
         47,
@@ -635,6 +1032,32 @@
       ]
     },
     {
+      "name": "TaskLegAccount",
+      "discriminator": [
+        111,
+        47,
+        221,
+        176,
+        124,
+        139,
+        139,
+        249
+      ]
+    },
+    {
+      "name": "TaskSwarmAccount",
+      "discriminator": [
+        50,
+        78,
+        22,
+        220,
+        248,
+        77,
+        85,
+        136
+      ]
+    },
+    {
       "name": "VehicleProfileAccount",
       "discriminator": [
         142,
@@ -649,6 +1072,19 @@
     }
   ],
   "events": [
+    {
+      "name": "DigitalTaskListed",
+      "discriminator": [
+        151,
+        181,
+        91,
+        176,
+        21,
+        55,
+        73,
+        241
+      ]
+    },
     {
       "name": "LegAssigned",
       "discriminator": [
@@ -728,6 +1164,58 @@
       ]
     },
     {
+      "name": "TaskLegAssigned",
+      "discriminator": [
+        110,
+        194,
+        16,
+        78,
+        14,
+        9,
+        237,
+        179
+      ]
+    },
+    {
+      "name": "TaskLegConfirmed",
+      "discriminator": [
+        2,
+        125,
+        208,
+        218,
+        4,
+        24,
+        37,
+        0
+      ]
+    },
+    {
+      "name": "TaskSettled",
+      "discriminator": [
+        161,
+        220,
+        91,
+        215,
+        23,
+        253,
+        247,
+        65
+      ]
+    },
+    {
+      "name": "TaskSwarmFormed",
+      "discriminator": [
+        110,
+        233,
+        241,
+        145,
+        201,
+        204,
+        16,
+        211
+      ]
+    },
+    {
       "name": "VehicleRegistered",
       "discriminator": [
         60,
@@ -759,6 +1247,76 @@
       "code": 6000,
       "name": "ZeroBudget",
       "msg": "Budget must be greater than zero"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidTaskStatus",
+      "msg": "Task must be in Listed status"
+    },
+    {
+      "code": 6002,
+      "name": "UnauthorizedCoordinator",
+      "msg": "Only the task coordinator can manage this task"
+    },
+    {
+      "code": 6003,
+      "name": "ZeroLegs",
+      "msg": "total_legs must be greater than zero"
+    },
+    {
+      "code": 6004,
+      "name": "BudgetExceeded",
+      "msg": "total_lamports exceeds task max_budget_lamports"
+    },
+    {
+      "code": 6005,
+      "name": "SwarmNotForming",
+      "msg": "Task swarm must be in Forming status"
+    },
+    {
+      "code": 6006,
+      "name": "SwarmNotActive",
+      "msg": "Task swarm must be in Active status"
+    },
+    {
+      "code": 6007,
+      "name": "LegsNotComplete",
+      "msg": "All legs must be completed before settlement"
+    },
+    {
+      "code": 6008,
+      "name": "LegIndexOutOfBounds",
+      "msg": "Leg index out of bounds"
+    },
+    {
+      "code": 6009,
+      "name": "AllLegsAssigned",
+      "msg": "All leg slots already assigned"
+    },
+    {
+      "code": 6010,
+      "name": "LegAlreadyConfirmed",
+      "msg": "This leg has already been confirmed"
+    },
+    {
+      "code": 6011,
+      "name": "NotAssignedAgent",
+      "msg": "Agent does not match the leg's assigned agent"
+    },
+    {
+      "code": 6012,
+      "name": "InsufficientVault",
+      "msg": "Insufficient vault balance for payment"
+    },
+    {
+      "code": 6013,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6014,
+      "name": "LegOutOfOrder",
+      "msg": "Legs must be confirmed in strict index order"
     }
   ],
   "types": [
@@ -804,6 +1362,102 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DigitalTaskAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "shipper",
+            "type": "pubkey"
+          },
+          {
+            "name": "coordinator",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_id",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "max_budget_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "DigitalTaskStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DigitalTaskListed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "shipper",
+            "type": "pubkey"
+          },
+          {
+            "name": "coordinator",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_budget_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DigitalTaskStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Listed"
+          },
+          {
+            "name": "SwarmForming"
+          },
+          {
+            "name": "InProgress"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Failed"
           }
         ]
       }
@@ -1125,6 +1779,215 @@
     },
     {
       "name": "SwarmStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Forming"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Settled"
+          },
+          {
+            "name": "Failed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskLegAccount",
+      "docs": [
+        "Per-leg state for digital tasks, created by coordinator via `assign_task_leg`.",
+        "",
+        "PDA seeds: [b\"dtleg\", task_swarm_pubkey, &[leg_index]]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task_swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "leg_index",
+            "type": "u8"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "confirmed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskLegAssigned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task_swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_leg",
+            "type": "pubkey"
+          },
+          {
+            "name": "leg_index",
+            "type": "u8"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskLegConfirmed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task_swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_leg",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "completed_legs",
+            "type": "u8"
+          },
+          {
+            "name": "total_legs",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task_swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "surplus_returned_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskSwarmAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_legs",
+            "type": "u8"
+          },
+          {
+            "name": "assigned_legs",
+            "type": "u8"
+          },
+          {
+            "name": "completed_legs",
+            "type": "u8"
+          },
+          {
+            "name": "total_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "TaskSwarmStatus"
+              }
+            }
+          },
+          {
+            "name": "formed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskSwarmFormed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "task_swarm",
+            "type": "pubkey"
+          },
+          {
+            "name": "task",
+            "type": "pubkey"
+          },
+          {
+            "name": "coordinator",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_legs",
+            "type": "u8"
+          },
+          {
+            "name": "total_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskSwarmStatus",
       "type": {
         "kind": "enum",
         "variants": [
