@@ -38,6 +38,13 @@ export async function buildApp(opts?: { logger?: boolean }) {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
+  // BigInt fields (paymentLamports, devnetEarningsLamports) come from Prisma
+  // and are not JSON-serializable by default. Coerce them to strings globally
+  // so any route returning Prisma models never throws.
+  app.setReplySerializer((payload) =>
+    JSON.stringify(payload, (_, v) => (typeof v === "bigint" ? v.toString() : v))
+  );
+
   const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://localhost:4321")
     .split(",")
     .map((s) => s.trim());

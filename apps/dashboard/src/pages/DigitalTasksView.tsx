@@ -653,11 +653,8 @@ const CLAUDE_CODE_CMD = "claude mcp add swarmhaul --transport http https://api.s
 const DESKTOP_JSON = `{
   "mcpServers": {
     "swarmhaul": {
-      "command": "bun",
-      "args": ["run", "…/mcp/stdio.ts"],
-      "env": {
-        "SWARMHAUL_API": "https://api.swarmhaul.defited.com"
-      }
+      "url": "https://api.swarmhaul.defited.com/mcp",
+      "transport": "http"
     }
   }
 }`;
@@ -793,8 +790,8 @@ function McpConnectPanel() {
 
         <McpStep
           step="02"
-          platform="Claude Desktop / OpenClaw"
-          badge="STDIO"
+          platform="Claude Desktop"
+          badge="HTTP"
           accent="amber"
           copyText={DESKTOP_JSON}
         >
@@ -803,22 +800,14 @@ function McpConnectPanel() {
           <span style={{ color: "var(--color-steel)" }}>{": { "}</span>
           <span style={{ color: "var(--color-amber)" }}>"swarmhaul"</span>
           <span style={{ color: "var(--color-steel)" }}>{": {\n  "}</span>
-          <span style={{ color: "var(--color-steel)" }}>"command"</span>
+          <span style={{ color: "var(--color-steel)" }}>"url"</span>
           <span style={{ color: "var(--color-steel)" }}>{": "}</span>
-          <span style={{ color: "var(--color-phosphor)" }}>"bun"</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"https://api.swarmhaul.defited.com/mcp"</span>
           <span style={{ color: "var(--color-steel)" }}>{",\n  "}</span>
-          <span style={{ color: "var(--color-steel)" }}>"args"</span>
-          <span style={{ color: "var(--color-steel)" }}>{": ["}</span>
-          <span style={{ color: "var(--color-phosphor)" }}>"run"</span>
-          <span style={{ color: "var(--color-steel)" }}>{", "}</span>
-          <span style={{ color: "var(--color-phosphor)" }}>"…/mcp/stdio.ts"</span>
-          <span style={{ color: "var(--color-steel)" }}>{"],\n  "}</span>
-          <span style={{ color: "var(--color-steel)" }}>"env"</span>
-          <span style={{ color: "var(--color-steel)" }}>{": { "}</span>
-          <span style={{ color: "var(--color-steel)" }}>"SWARMHAUL_API"</span>
+          <span style={{ color: "var(--color-steel)" }}>"transport"</span>
           <span style={{ color: "var(--color-steel)" }}>{": "}</span>
-          <span style={{ color: "var(--color-phosphor)" }}>"https://api.swarmhaul.defited.com"</span>
-          <span style={{ color: "var(--color-steel)" }}>{" }\n}}}"}</span>
+          <span style={{ color: "var(--color-phosphor)" }}>"http"</span>
+          <span style={{ color: "var(--color-steel)" }}>{"\n}}}"}</span>
         </McpStep>
 
         <McpStep
@@ -849,14 +838,21 @@ function McpConnectPanel() {
 export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEvent[]; highlightTaskId?: string }) {
   const [tasks, setTasks] = useState<DigitalTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "listed" | "in_progress" | "completed">("all");
 
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch(`${API}/digital-tasks`);
-      if (!res.ok) return; // keep existing state on API error
+      if (!res.ok) {
+        const msg = await res.text().catch(() => `HTTP ${res.status}`);
+        setFetchError(msg);
+        return;
+      }
       const data = await res.json();
-      if (Array.isArray(data)) setTasks(data as DigitalTask[]);
+      if (Array.isArray(data)) { setTasks(data as DigitalTask[]); setFetchError(null); }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -942,6 +938,13 @@ export function DigitalTasksView({ wsEvents, highlightTaskId }: { wsEvents: WSEv
       {loading ? (
         <div className="text-[var(--color-steel)] text-[11px] py-12 text-center tracking-[0.12em]">
           FETCHING TASKS…
+        </div>
+      ) : fetchError ? (
+        <div className="py-12 text-center border border-[var(--color-blood)] bg-[var(--color-graphite)]">
+          <div className="text-[var(--color-blood)] text-[11px] tracking-[0.12em]">API ERROR</div>
+          <div className="mt-2 text-[9px] text-[var(--color-ash)] font-mono max-w-sm mx-auto break-all">
+            {fetchError}
+          </div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center border border-[var(--color-line)] bg-[var(--color-graphite)]">
