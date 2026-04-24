@@ -135,6 +135,8 @@ export interface DigitalLeg {
   result?: string;
   startedAt?: Date;
   completedAt?: Date;
+  paymentLamports?: string; // serialised BigInt; present on on-chain tasks after assignment
+  onChainLeg?: string;      // on-chain leg PDA pubkey
 }
 
 export interface DigitalTask {

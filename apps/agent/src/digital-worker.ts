@@ -64,12 +64,16 @@ async function executeLeg(
       .filter((l) => l.sequence < leg.sequence && l.status === "completed")
       .sort((a, b) => b.sequence - a.sequence)[0];
 
-    // Signal in_progress
-    await fetch(`${config.apiEndpoint}/digital-tasks/${task.id}/legs/${leg.id}/start`, {
+    // Signal in_progress — abort if rejected (e.g. leg taken by another agent)
+    const startRes = await fetch(`${config.apiEndpoint}/digital-tasks/${task.id}/legs/${leg.id}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agentPubkey }),
     });
+    if (!startRes.ok) {
+      console.error(`[Digital] /start rejected (${startRes.status}) for leg ${leg.sequence + 1} of "${task.title}"`);
+      return;
+    }
 
     const result = await callLlm(leg.instruction, prevLeg?.result, config);
 

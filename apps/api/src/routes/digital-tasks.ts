@@ -277,10 +277,15 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: "You already hold a leg in this task" });
       }
 
-      const updated = await prisma.digitalLeg.update({
-        where: { id: legId },
+      // Atomic conditional update — only succeeds if the row is still "open",
+      // preventing two concurrent bids from both winning the same leg.
+      const { count } = await prisma.digitalLeg.updateMany({
+        where: { id: legId, status: "open" },
         data: { agentPubkey, bidSol, status: "assigned" },
       });
+      if (count === 0) return reply.code(409).send({ error: "Leg already assigned" });
+
+      const updated = await prisma.digitalLeg.findUnique({ where: { id: legId } });
 
       // Flip task DB status on first assignment
       await prisma.digitalTask.update({
@@ -557,6 +562,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       const task = await prisma.digitalTask.findUnique({ where: { id } });
       if (!task) return reply.code(404).send({ error: "Task not found" });
       if (task.shipperPubkey !== shipperPubkey) return reply.code(403).send({ error: "Not your task" });
+      if (task.status !== "listed") return reply.code(409).send({ error: "Task is no longer listed — an agent may have already bid" });
 
       await prisma.digitalTask.delete({ where: { id } });
       broadcast({ type: "DIGITAL_TASK_CANCELLED", taskId: id, signature } as never);

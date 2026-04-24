@@ -15,7 +15,7 @@ export function addClient(ws: WebSocket) {
 }
 
 export function broadcast(event: WSEvent) {
-  const data = JSON.stringify(event);
+  const data = JSON.stringify(event, (_, v) => (typeof v === "bigint" ? v.toString() : v));
   for (const ws of clients) {
     if (ws.readyState === ws.OPEN) {
       ws.send(data);

@@ -45,7 +45,7 @@ function buildMcpServer(): Server {
       content: [
         {
           type: "text" as const,
-          text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+          text: typeof result === "string" ? result : JSON.stringify(result, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2),
         },
       ],
     };
@@ -71,7 +71,7 @@ export async function mcpRoutes(app: FastifyInstance) {
         content: [
           {
             type: "text",
-            text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+            text: typeof result === "string" ? result : JSON.stringify(result, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2),
           },
         ],
       };
