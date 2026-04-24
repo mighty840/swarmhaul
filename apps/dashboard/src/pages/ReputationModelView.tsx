@@ -393,7 +393,7 @@ function PaymentAllocationSimulator() {
       </div>
 
       <div className="w-full mb-4">
-        <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 text-[10px] text-[var(--color-steel)] tracking-[0.1em] pb-2 border-b border-[var(--color-line)]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-[10px] text-[var(--color-steel)] tracking-[0.1em] pb-2 border-b border-[var(--color-line)]">
           <div>AGENT</div>
           <div>BID ── SOL</div>
           <div>REPUTATION</div>
@@ -401,7 +401,7 @@ function PaymentAllocationSimulator() {
         {agents.map((a, i) => (
           <div
             key={i}
-            className="grid grid-cols-[1fr_1fr_1fr] gap-4 items-center py-3 border-b border-[var(--color-line)] text-[11px]"
+            className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center py-3 border-b border-[var(--color-line)] text-[11px]"
           >
             <div className="text-[var(--color-bone)]">{a.name}</div>
             <div className="flex items-center gap-2">

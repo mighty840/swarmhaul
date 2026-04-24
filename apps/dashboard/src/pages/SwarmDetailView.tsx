@@ -428,7 +428,7 @@ export function SwarmDetailView({
             </button>
             <div className="label">▸ SWARM INSPECTOR</div>
           </div>
-          <h1 className="text-[30px] leading-[1.05] tracking-[-0.02em] font-light text-[var(--color-bone)] truncate">
+          <h1 className="text-[20px] sm:text-[26px] lg:text-[30px] leading-[1.05] tracking-[-0.02em] font-light text-[var(--color-bone)] truncate">
             <span className="display-serif text-[var(--color-magenta)]">
               Swarm
             </span>{" "}

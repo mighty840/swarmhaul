@@ -142,8 +142,8 @@ export function StatusBar({
       </div>
 
       {/* Nav row */}
-      <div className="flex items-center px-4 h-11">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center px-2 sm:px-4 min-h-[44px] h-auto py-1 sm:h-11 sm:py-0 overflow-x-auto">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
           {VIEWS.map(({ key, label, idx }) => {
             const isClaim = key === "claim";
             const isActive = view === key;
@@ -151,17 +151,20 @@ export function StatusBar({
               <button
                 key={key}
                 onClick={() => onViewChange(key)}
-                className={`btn-ghost flex items-center gap-2 ${isActive ? "active" : ""}`}
+                className={`btn-ghost flex items-center gap-1.5 text-[10px] sm:text-[11px] px-2 sm:px-3 ${isActive ? "active" : ""}`}
                 style={isClaim && !isActive ? {
                   color: "var(--color-amber)",
                   borderColor: "rgba(255,170,0,0.35)",
                 } : undefined}
               >
                 <span
-                  className="text-[8px]"
+                  className="hidden sm:inline text-[8px]"
                   style={{ color: isClaim && !isActive ? "rgba(255,170,0,0.6)" : "var(--color-ash)" }}
                 >
                   {isClaim ? "✦" : idx}
+                </span>
+                <span className="hidden xs:inline sm:hidden text-[8px]" style={{ color: isClaim && !isActive ? "rgba(255,170,0,0.6)" : "var(--color-ash)" }}>
+                  {isClaim ? "✦" : ""}
                 </span>
                 {label}
               </button>
@@ -175,9 +178,9 @@ export function StatusBar({
           )}
         </div>
 
-        <div className="flex-1" />
+        <div className="hidden lg:flex flex-1" />
 
-        <div className="text-[9px] font-semibold tracking-[0.16em] uppercase text-[var(--color-steel)]">
+        <div className="hidden lg:block text-[9px] font-semibold tracking-[0.16em] uppercase text-[var(--color-steel)]">
           MUNICH OPS ▸ EU-CENTRAL ▸ NODE 38bV...rH6R
         </div>
       </div>

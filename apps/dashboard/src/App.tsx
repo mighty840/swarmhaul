@@ -57,7 +57,7 @@ function AppShell() {
       />
       <Ticker events={data.wsEvents} />
 
-      <main className="flex-1 p-4 lg:p-6">
+      <main className="flex-1 p-2 sm:p-4 lg:p-6">
         {view === "economy" && (
           <EconomyView
             stats={data.stats}

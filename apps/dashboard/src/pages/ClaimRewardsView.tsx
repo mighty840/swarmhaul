@@ -42,9 +42,9 @@ function DigitTile({ value, label }: { value: string; label: string }) {
       <div
         className="flex items-center justify-center tabular-nums font-mono font-bold"
         style={{
-          width: 64,
-          height: 64,
-          fontSize: 32,
+          width: "clamp(44px, 15vw, 64px)",
+          height: "clamp(44px, 15vw, 64px)",
+          fontSize: "clamp(20px, 6vw, 32px)",
           color: "var(--color-amber)",
           border: "1px solid var(--color-amber)",
           background: "rgba(255,170,0,0.07)",
@@ -264,7 +264,7 @@ export function ClaimRewardsView() {
       <div className="max-w-xl mx-auto pt-8 space-y-6">
         <ClaimHeader />
 
-        <div className="border border-[var(--color-line)] bg-[var(--color-graphite)] px-8 py-10 space-y-8">
+        <div className="border border-[var(--color-line)] bg-[var(--color-graphite)] px-4 sm:px-8 py-6 sm:py-10 space-y-8">
           <div className="text-center space-y-2">
             <div className="text-[9px] font-bold tracking-[0.22em] text-[var(--color-amber)] uppercase">
               Claim window opens in

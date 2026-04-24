@@ -273,7 +273,7 @@ export function SwarmMap({
         <div className="relative">
           <div ref={mapRef} className="h-[calc(100vh-280px)] min-h-[480px]" />
 
-          <div className="absolute top-4 left-4 panel z-[400] w-[200px]">
+          <div className="absolute top-4 left-4 panel z-[400] w-[160px] sm:w-[200px]">
             <div className="panel-header">
               <span className="panel-title">STATUS LEGEND</span>
             </div>
