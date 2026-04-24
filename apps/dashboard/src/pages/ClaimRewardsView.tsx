@@ -87,12 +87,21 @@ interface ClaimRecord {
   status: string;
 }
 
+interface PublicClaimEntry {
+  id: string;
+  devnetPubkey: string;
+  devnetEarningsLamports: string;
+  claimedAt: string;
+  status: string;
+}
+
 interface EarningsPreview { lamports: bigint; loaded: boolean }
 
 export function ClaimRewardsView() {
   const [now, setNow] = useState(() => new Date());
   const [windowStatus, setWindowStatus] = useState<WindowStatus>(() => getWindowStatus(new Date()));
   const [totalClaims, setTotalClaims] = useState<number | null>(null);
+  const [publicClaims, setPublicClaims] = useState<PublicClaimEntry[]>([]);
 
   // Form state
   const [devnetPubkey,  setDevnetPubkey]  = useState("");
@@ -114,19 +123,26 @@ export function ClaimRewardsView() {
     return () => clearInterval(id);
   }, []);
 
-  // Poll claim count every 30s
+  // Poll claim count + public list every 30s
   useEffect(() => {
-    const fetchCount = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`${API}/reward-claims/window`);
-        if (res.ok) {
-          const data = await res.json() as { totalClaims: number };
+        const [windowRes, publicRes] = await Promise.all([
+          fetch(`${API}/reward-claims/window`),
+          fetch(`${API}/reward-claims/public`),
+        ]);
+        if (windowRes.ok) {
+          const data = await windowRes.json() as { totalClaims: number };
           setTotalClaims(data.totalClaims);
+        }
+        if (publicRes.ok) {
+          const data = await publicRes.json() as PublicClaimEntry[];
+          setPublicClaims(data);
         }
       } catch { /* silent */ }
     };
-    void fetchCount();
-    const id = setInterval(fetchCount, 30_000);
+    void fetchData();
+    const id = setInterval(fetchData, 30_000);
     return () => clearInterval(id);
   }, []);
 
@@ -332,8 +348,10 @@ export function ClaimRewardsView() {
             <ClaimsTicker count={totalClaims} />
           )}
         </div>
-      </div>
-    );
+
+      {publicClaims.length > 0 && <ClaimsTable claims={publicClaims} />}
+    </div>
+  );
   }
 
   // ── Open window — claim form ─────────────────────────────────────────────
@@ -463,6 +481,8 @@ export function ClaimRewardsView() {
           </span>
         </div>
       </form>
+
+      {publicClaims.length > 0 && <ClaimsTable claims={publicClaims} />}
     </div>
   );
 }
@@ -500,6 +520,67 @@ function PubkeyField({ label, value }: { label: string; value: string }) {
       <div className="label-muted mb-1">{label}</div>
       <div className="font-mono text-[10px] text-[var(--color-bone)] truncate" title={value}>
         {value.slice(0, 8)}··{value.slice(-6)}
+      </div>
+    </div>
+  );
+}
+
+function ClaimsTable({ claims }: { claims: PublicClaimEntry[] }) {
+  return (
+    <div className="border border-[var(--color-line)] bg-[var(--color-graphite)]">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-line)]">
+        <span className="text-[9px] font-bold tracking-[0.18em] text-[var(--color-bone)]">
+          REGISTERED CLAIMS
+        </span>
+        <span className="text-[9px] tabular-nums text-[var(--color-ash)]">
+          {claims.length} agent{claims.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <div className="divide-y divide-[var(--color-line)]">
+        {/* Header row */}
+        <div className="grid grid-cols-[1.5rem_1fr_auto_auto] gap-3 px-4 py-2 text-[8px] tracking-[0.16em] font-semibold text-[var(--color-dim)] uppercase">
+          <span>#</span>
+          <span>DEVNET AGENT</span>
+          <span className="text-right">EARNINGS</span>
+          <span className="text-right">STATUS</span>
+        </div>
+
+        {claims.map((c, i) => {
+          const sol = (Number(c.devnetEarningsLamports) / 1_000_000_000).toFixed(4);
+          const isPaid = c.status === "paid";
+          return (
+            <div
+              key={c.id}
+              className="grid grid-cols-[1.5rem_1fr_auto_auto] gap-3 px-4 py-2.5 items-center hover:bg-[var(--color-hover)] transition-colors"
+            >
+              <span className="text-[9px] tabular-nums text-[var(--color-dim)] font-mono">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span
+                className="font-mono text-[10px] text-[var(--color-steel)] truncate"
+                title={c.devnetPubkey}
+              >
+                {c.devnetPubkey.slice(0, 6)}
+                <span className="text-[var(--color-faint)]">··</span>
+                {c.devnetPubkey.slice(-6)}
+              </span>
+              <span
+                className="font-mono text-[11px] font-bold tabular-nums text-right"
+                style={{ color: Number(sol) > 0 ? "var(--color-amber)" : "var(--color-dim)" }}
+              >
+                {sol}
+                <span className="text-[8px] font-normal text-[var(--color-steel)] ml-1">SOL</span>
+              </span>
+              <span
+                className="text-[8px] tracking-[0.12em] font-semibold uppercase text-right"
+                style={{ color: isPaid ? "var(--color-phosphor)" : "var(--color-amber)" }}
+              >
+                {isPaid ? "PAID" : "PENDING"}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

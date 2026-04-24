@@ -30,6 +30,15 @@ export async function rewardClaimRoutes(app: FastifyInstance) {
     };
   });
 
+  // GET /reward-claims/public — all claims, no mainnet addresses (public leaderboard)
+  app.get("/public", async () => {
+    const claims = await prisma.rewardClaim.findMany({
+      orderBy: { devnetEarningsLamports: "desc" },
+      select: { id: true, devnetPubkey: true, devnetEarningsLamports: true, claimedAt: true, status: true },
+    });
+    return claims;
+  });
+
   // GET /reward-claims/my?devnetPubkey=xxx — check own claim status
   app.get("/my", async (req, reply) => {
     const { devnetPubkey } = req.query as { devnetPubkey?: string };
