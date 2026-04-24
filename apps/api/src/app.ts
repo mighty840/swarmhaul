@@ -25,6 +25,8 @@ import { digitalTaskRoutes } from "./routes/digital-tasks.js";
 import { rewardClaimRoutes } from "./routes/reward-claims.js";
 import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
+import { prisma } from "./db/client.js";
+import { broadcast } from "./services/ws-broadcaster.js";
 
 export async function buildApp(opts?: { logger?: boolean }) {
   // 16KB JSON body cap — our largest legitimate payload (a bid with
@@ -136,6 +138,31 @@ export async function buildApp(opts?: { logger?: boolean }) {
     await app.register(devRoutes, { prefix: "/dev" });
     app.log.warn("DEV_ROUTES enabled — /dev/* endpoints exposed");
   }
+
+  // Self-healing reconciliation: find tasks where all legs are completed
+  // but the task status was never advanced (e.g. due to the ws-broadcaster
+  // BigInt crash that blocked the completion check from running).
+  async function reconcileDigitalTasks() {
+    const stuck = await prisma.digitalTask.findMany({
+      where: { status: "in_progress" },
+      include: { legs: true },
+    });
+    for (const task of stuck) {
+      if (task.legs.length > 0 && task.legs.every((l) => l.status === "completed")) {
+        const fixed = await prisma.digitalTask.update({
+          where: { id: task.id },
+          data: { status: "completed", completedAt: new Date() },
+          include: { legs: { orderBy: { sequence: "asc" } } },
+        });
+        broadcast({ type: "DIGITAL_TASK_COMPLETED", task: fixed as never });
+        app.log.info(`[reconcile] auto-completed stuck task ${task.id}`);
+      }
+    }
+  }
+
+  // Run once on startup, then every 5 minutes.
+  void reconcileDigitalTasks();
+  setInterval(() => void reconcileDigitalTasks(), 5 * 60 * 1000);
 
   return app;
 }
