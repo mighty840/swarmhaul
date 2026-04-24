@@ -19,12 +19,16 @@ const ClaimBody = z.object({
 });
 
 export async function rewardClaimRoutes(app: FastifyInstance) {
-  // GET /reward-claims/window — current window status + dates (public)
-  app.get("/window", async () => ({
-    status: windowStatus(),
-    opensAt:  WINDOW_OPEN.toISOString(),
-    closesAt: WINDOW_CLOSE.toISOString(),
-  }));
+  // GET /reward-claims/window — current window status + dates + live count (public)
+  app.get("/window", async () => {
+    const totalClaims = await prisma.rewardClaim.count();
+    return {
+      status: windowStatus(),
+      opensAt:  WINDOW_OPEN.toISOString(),
+      closesAt: WINDOW_CLOSE.toISOString(),
+      totalClaims,
+    };
+  });
 
   // GET /reward-claims/my?devnetPubkey=xxx — check own claim status
   app.get("/my", async (req, reply) => {

@@ -92,6 +92,7 @@ interface EarningsPreview { lamports: bigint; loaded: boolean }
 export function ClaimRewardsView() {
   const [now, setNow] = useState(() => new Date());
   const [windowStatus, setWindowStatus] = useState<WindowStatus>(() => getWindowStatus(new Date()));
+  const [totalClaims, setTotalClaims] = useState<number | null>(null);
 
   // Form state
   const [devnetPubkey,  setDevnetPubkey]  = useState("");
@@ -110,6 +111,22 @@ export function ClaimRewardsView() {
       setNow(t);
       setWindowStatus(getWindowStatus(t));
     }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Poll claim count every 30s
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await fetch(`${API}/reward-claims/window`);
+        if (res.ok) {
+          const data = await res.json() as { totalClaims: number };
+          setTotalClaims(data.totalClaims);
+        }
+      } catch { /* silent */ }
+    };
+    void fetchCount();
+    const id = setInterval(fetchCount, 30_000);
     return () => clearInterval(id);
   }, []);
 
@@ -310,6 +327,10 @@ export function ClaimRewardsView() {
             not a custodial arrangement. Participation in the hackathon constitutes acceptance of
             these terms.
           </div>
+
+          {totalClaims !== null && (
+            <ClaimsTicker count={totalClaims} />
+          )}
         </div>
       </div>
     );
@@ -337,8 +358,15 @@ export function ClaimRewardsView() {
             CLAIM WINDOW OPEN
           </span>
         </div>
-        <div className="text-[9px] tabular-nums text-[var(--color-ash)] font-mono">
-          CLOSES IN {closesIn.days}d {pad2(closesIn.hours)}h {pad2(closesIn.minutes)}m {pad2(closesIn.seconds)}s
+        <div className="flex items-center gap-4">
+          {totalClaims !== null && (
+            <span className="text-[9px] tabular-nums font-mono" style={{ color: "var(--color-amber)" }}>
+              {totalClaims} CLAIM{totalClaims !== 1 ? "S" : ""} REGISTERED
+            </span>
+          )}
+          <div className="text-[9px] tabular-nums text-[var(--color-ash)] font-mono">
+            CLOSES IN {closesIn.days}d {pad2(closesIn.hours)}h {pad2(closesIn.minutes)}m {pad2(closesIn.seconds)}s
+          </div>
         </div>
       </div>
 
@@ -473,6 +501,23 @@ function PubkeyField({ label, value }: { label: string; value: string }) {
       <div className="font-mono text-[10px] text-[var(--color-bone)] truncate" title={value}>
         {value.slice(0, 8)}··{value.slice(-6)}
       </div>
+    </div>
+  );
+}
+
+function ClaimsTicker({ count }: { count: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 py-2 border-t border-[var(--color-line)]">
+      <span
+        className="w-1.5 h-1.5 rounded-full animate-pulse"
+        style={{ backgroundColor: "var(--color-amber)" }}
+      />
+      <span className="text-[9px] tabular-nums font-mono font-semibold tracking-[0.14em]" style={{ color: "var(--color-amber)" }}>
+        {count}
+      </span>
+      <span className="text-[9px] tracking-[0.12em] text-[var(--color-steel)] uppercase">
+        claim{count !== 1 ? "s" : ""} registered so far
+      </span>
     </div>
   );
 }
