@@ -316,7 +316,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
               coordinatorFormAndAssignTaskSwarm(
                 sdk,
                 coordinator,
-                new PublicKey(task.onChainTask),
+                new PublicKey(task.onChainTask!),
                 perLegLamports * BigInt(task.legs.length),
                 agents,
               ),
@@ -418,9 +418,9 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
             coordinatorConfirmTaskLeg(
               sdk,
               coordinator,
-              new PublicKey(task.onChainTask),
-              new PublicKey(task.onChainSwarm),
-              new PublicKey(leg.onChainLeg),
+              new PublicKey(task.onChainTask!),
+              new PublicKey(task.onChainSwarm!),
+              new PublicKey(leg.onChainLeg!),
               new PublicKey(agentPubkey),
             ),
           );
