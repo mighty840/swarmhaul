@@ -469,8 +469,8 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
               coordinatorSettleTask(
                 sdk,
                 coordinator,
-                new PublicKey(task.onChainTask),
-                new PublicKey(task.onChainSwarm),
+                new PublicKey(task.onChainTask!),
+                new PublicKey(task.onChainSwarm!),
                 new PublicKey(task.shipperPubkey),
                 0, // feeBps — 0 now, add platform wallet + non-zero bps when converting to commercial
               ),

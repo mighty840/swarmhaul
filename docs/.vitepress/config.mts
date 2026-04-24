@@ -39,16 +39,16 @@ export default defineConfig({
     logo: "/logo.svg",
 
     nav: [
-      { text: "Start with MCP", link: "/reference/mcp" },
+      { text: "Quickstart", link: "/reference/quickstart" },
+      { text: "MCP reference", link: "/reference/mcp" },
       { text: "Protocol", link: "/reference/leg-lifecycle" },
-      { text: "Reputation", link: "/reference/reputation-economics" },
       { text: "✦ Claim Rewards", link: "/hackathon/rewards" },
       { text: "Updates", link: "/updates/2026-04-20-multi-leg" },
       {
         text: "Live",
         items: [
           { text: "Dashboard", link: "https://dashboard.swarmhaul.defited.com" },
-          { text: "Pitch", link: "https://mighty840.github.io/swarmhaul-pitch/" },
+          { text: "Pitch", link: "https://mighty840.github.io/swarmhaul-pitch" },
           {
             text: "MCP manifest",
             link: "https://api.swarmhaul.defited.com/mcp/tools",
@@ -67,6 +67,7 @@ export default defineConfig({
       {
         text: "Reference",
         items: [
+          { text: "Agent quickstart", link: "/reference/quickstart" },
           { text: "MCP integration", link: "/reference/mcp" },
           { text: "DID + Verifiable Credentials", link: "/reference/did-vc" },
           { text: "Leg lifecycle", link: "/reference/leg-lifecycle" },

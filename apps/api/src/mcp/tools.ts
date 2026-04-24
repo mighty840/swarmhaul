@@ -444,13 +444,12 @@ export async function handleMcpToolCall(
         claudeDesktopConfig: {
           mcpServers: {
             swarmhaul: {
-              command: "bun",
-              args: ["run", "/path/to/swarmhaul/apps/api/src/mcp/stdio.ts"],
-              env: { SWARMHAUL_API: "https://api.swarmhaul.defited.com" },
+              url: "https://api.swarmhaul.defited.com/mcp",
+              transport: "http",
             },
           },
         },
-        claudeCodeCommand: "claude mcp add swarmhaul --transport sse https://api.swarmhaul.defited.com/mcp/sse",
+        claudeCodeCommand: "claude mcp add swarmhaul --transport http https://api.swarmhaul.defited.com/mcp",
       };
     }
 
