@@ -100,6 +100,7 @@ export interface AgentReputation {
   avgDeliveryTimeSec: number;
   reliabilityScore: number; // 0-100
   registeredAt: Date;
+  totalEarningsLamports?: string; // serialised BigInt, only on leaderboard
 }
 
 // === Negotiation ===

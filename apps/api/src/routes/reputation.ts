@@ -8,10 +8,30 @@ type RepParams = z.infer<typeof ReputationPubkeyParam>;
 export async function reputationRoutes(app: FastifyInstance) {
   // Leaderboard MUST come before /:pubkey or it will be matched as a pubkey
   app.get("/leaderboard", async () => {
-    return prisma.agentReputation.findMany({
+    const agents = await prisma.agentReputation.findMany({
       orderBy: { reliabilityScore: "desc" },
       take: 20,
     });
+
+    const pubkeys = agents.map((a) => a.agentPubkey);
+    const earningsRows = await prisma.digitalLeg.groupBy({
+      by: ["agentPubkey"],
+      where: {
+        agentPubkey: { in: pubkeys },
+        status: "completed",
+        paymentLamports: { not: null },
+      },
+      _sum: { paymentLamports: true },
+    });
+
+    const earningsMap = new Map(
+      earningsRows.map((r) => [r.agentPubkey, r._sum.paymentLamports ?? 0n]),
+    );
+
+    return agents.map((a) => ({
+      ...a,
+      totalEarningsLamports: String(earningsMap.get(a.agentPubkey) ?? 0n),
+    }));
   });
 
   app.get(

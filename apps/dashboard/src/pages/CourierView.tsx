@@ -59,6 +59,12 @@ function shortenPubkey(pk: string): string {
   return `${pk.slice(0, 6)}··${pk.slice(-4)}`;
 }
 
+function lamportsToSol(lamports: string | undefined): string {
+  if (!lamports) return "0.000";
+  const n = Number(BigInt(lamports)) / 1_000_000_000;
+  return n.toFixed(n >= 0.001 ? 3 : 6);
+}
+
 const MCP_TOOLS = [
   { name: "swarmhaul_list_packages", desc: "discover open delivery tasks" },
   { name: "swarmhaul_submit_bid", desc: "bid on a package as an agent" },
@@ -95,7 +101,7 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
         {/* Reputation table */}
         <Panel
           title="REPUTATION RANK ▸ ALL AGENTS"
-          meta="UPDATED LIVE"
+          meta="EARNINGS TRACKED IN DB · DEVNET-RESET-PROOF"
           accent="phosphor"
           className="col-span-12 lg:col-span-7"
         >
@@ -151,6 +157,20 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                       </div>
                       <div className="text-[9px] text-[var(--color-steel)] mt-0.5 tracking-[0.14em] uppercase font-semibold">
                         AGENT ▸ AUTONOMOUS NODE
+                      </div>
+                    </div>
+
+                    {/* Earnings */}
+                    <div className="text-right">
+                      <div className="text-[10px] text-[var(--color-ash)] tracking-[0.14em] mb-0.5 font-semibold">
+                        EARNED
+                      </div>
+                      <div
+                        className="text-[14px] tabular-nums font-bold"
+                        style={{ color: Number(agent.totalEarningsLamports ?? "0") > 0 ? "var(--color-amber)" : "var(--color-steel)" }}
+                      >
+                        {lamportsToSol(agent.totalEarningsLamports)}
+                        <span className="text-[10px] font-semibold text-[var(--color-ash)] ml-0.5">SOL</span>
                       </div>
                     </div>
 
