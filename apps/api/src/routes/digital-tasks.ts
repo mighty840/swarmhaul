@@ -285,7 +285,8 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       });
       if (count === 0) return reply.code(409).send({ error: "Leg already assigned" });
 
-      const updated = await prisma.digitalLeg.findUnique({ where: { id: legId } });
+      // updateMany succeeded (count > 0), so the row must exist.
+      const updated = await prisma.digitalLeg.findUniqueOrThrow({ where: { id: legId } });
 
       // Flip task DB status on first assignment
       await prisma.digitalTask.update({
