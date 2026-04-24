@@ -12,7 +12,6 @@ Deutschland
 ## Kontakt
 
 E-Mail: [parnerkarsharang@gmail.com](mailto:parnerkarsharang@gmail.com)  
-Telefon: +49 176 64296347  
 Web: [sharang.meghsakha.com](https://sharang.meghsakha.com)
 
 ## Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV
