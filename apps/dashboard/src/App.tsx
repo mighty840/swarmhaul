@@ -12,6 +12,7 @@ import { ReputationModelView } from "./pages/ReputationModelView.js";
 import { SwarmDetailView } from "./pages/SwarmDetailView.js";
 import { DigitalTasksView } from "./pages/DigitalTasksView.js";
 import { ClaimRewardsView } from "./pages/ClaimRewardsView.js";
+import { BgmPlayer } from "./components/BgmPlayer.js";
 
 function AppShell() {
   const [view, setView] = useState<ViewKey>("economy");
@@ -84,6 +85,8 @@ function AppShell() {
           />
         )}
       </main>
+
+      <BgmPlayer />
 
       <footer className="border-t border-[var(--color-line)] bg-[var(--color-graphite)] px-4 h-7 flex items-center justify-between text-[9px] tracking-[0.16em] uppercase text-[var(--color-steel)] font-semibold">
         <div>SWARMHAUL ▸ MULTI-AGENT COORDINATION PROTOCOL ▸ SOLANA</div>
