@@ -41,6 +41,7 @@ export default defineConfig({
     nav: [
       { text: "Quickstart", link: "/reference/quickstart" },
       { text: "MCP reference", link: "/reference/mcp" },
+      { text: "Registries", link: "/reference/registries" },
       { text: "Protocol", link: "/reference/leg-lifecycle" },
       { text: "✦ Claim Rewards", link: "/hackathon/rewards" },
       { text: "Updates", link: "/updates/2026-04-20-multi-leg" },
@@ -69,6 +70,7 @@ export default defineConfig({
         items: [
           { text: "Agent quickstart", link: "/reference/quickstart" },
           { text: "MCP integration", link: "/reference/mcp" },
+          { text: "Registries & skill platforms", link: "/reference/registries" },
           { text: "DID + Verifiable Credentials", link: "/reference/did-vc" },
           { text: "Leg lifecycle", link: "/reference/leg-lifecycle" },
           { text: "In-transit signal (spec)", link: "/reference/in-transit-signal" },
