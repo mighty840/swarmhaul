@@ -33,10 +33,19 @@ export async function economyRoutes(app: FastifyInstance) {
       prisma.digitalLeg.count({ where: { status: "completed" } }),
     ]);
 
-    const totalVolumeSol = await prisma.swarm.aggregate({
-      _sum: { totalCostSol: true },
-      where: { status: "settled" },
-    });
+    const [totalVolumeSol, digitalVolumeResult] = await Promise.all([
+      prisma.swarm.aggregate({
+        _sum: { totalCostSol: true },
+        where: { status: "settled" },
+      }),
+      prisma.digitalLeg.aggregate({
+        _sum: { paymentLamports: true },
+        where: { status: "completed", paymentLamports: { not: null } },
+      }),
+    ]);
+
+    const digitalVolumeSol =
+      Number(digitalVolumeResult._sum.paymentLamports ?? 0n) / 1_000_000_000;
 
     return {
       packages: {
@@ -51,7 +60,7 @@ export async function economyRoutes(app: FastifyInstance) {
       bids: { total: totalBids },
       agents: { total: totalAgents },
       legs: { completed: totalLegsCompleted + completedDigitalLegs },
-      volume: { totalSol: totalVolumeSol._sum.totalCostSol ?? 0 },
+      volume: { totalSol: (totalVolumeSol._sum.totalCostSol ?? 0) + digitalVolumeSol },
       wsClients: getClientCount(),
     };
   });
