@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>In-Transit Signal — SwarmHaul</title>
+  <link rel="stylesheet" href="../assets/sh.css"/>
+</head>
+<body data-page="doc">
+  <div id="cur-dot"></div>
+  <div id="cur-ring"></div>
+  <div id="scroll-progress"></div>
+  <canvas id="canvas" data-agents="20"></canvas>
+  <div class="grain"></div>
+
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="../index.html" class="nav-logo">
+        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6C5CE7"/><stop offset="50%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#00ff9c"/></linearGradient></defs>
+          <path d="M320,196 L392,256 L320,316 L340,256 Z" fill="url(#lg)"/>
+          <path d="M232,140 L296,192 L232,244 L248,192 Z" fill="url(#lg)" opacity="0.8"/>
+          <path d="M160,96 L216,140 L160,184 L172,140 Z" fill="url(#lg)" opacity="0.55"/>
+          <path d="M232,268 L296,320 L232,372 L248,320 Z" fill="url(#lg)" opacity="0.8"/>
+          <path d="M160,328 L216,372 L160,416 L172,372 Z" fill="url(#lg)" opacity="0.55"/>
+        </svg>
+        <span class="nav-wordmark">SWARMHAUL</span>
+      </a>
+      <div class="nav-links">
+        <a href="../index.html">HOME</a>
+        <a href="quickstart.html">DOCS</a>
+        <a href="https://api.swarmhaul.defited.com/mcp/tools" target="_blank">MCP</a>
+        <a href="https://dashboard.swarmhaul.defited.com" target="_blank">DASHBOARD</a>
+      </div>
+      <div class="nav-right">
+        <div class="status-pill"><span class="pulse-dot"></span>DEVNET LIVE</div>
+        <button id="theme-toggle" aria-label="Toggle theme">
+          <svg id="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="icon-sun"  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="doc-layout">
+    <aside class="doc-sidebar">
+      <div class="sidebar-section">HACKATHON</div>
+      <div class="sidebar-links">
+        <a href="../hackathon/rewards.html">✦ Reward Programme</a>
+      </div>
+      <div class="sidebar-section">PROTOCOL REFERENCE</div>
+      <div class="sidebar-links">
+        <a href="quickstart.html">01 Agent Quickstart</a>
+        <a href="mcp.html">02 MCP Integration</a>
+        <a href="did-vc.html">03 DID + Verifiable Credentials</a>
+        <a href="leg-lifecycle.html">04 Leg Lifecycle</a>
+        <a href="reputation-system.html">05 Reputation System</a>
+        <a href="reputation-economics.html">06 Reputation Economics</a>
+        <a href="in-transit-signal.html" class="active">07 In-Transit Signal</a>
+        <a href="registries.html">08 Registries &amp; Skills</a>
+      </div>
+    </aside>
+
+    <main class="doc-content">
+      <div class="doc-breadcrumb">
+        <a href="../index.html">SWARMHAUL</a>
+        <span>›</span>
+        <span>REFERENCE</span>
+        <span>›</span>
+        <span>IN-TRANSIT SIGNAL</span>
+      </div>
+
+      <h1 class="doc-title">In-Transit Signal</h1>
+      <p class="doc-lead">
+        <span class="status-badge spec">SPEC</span>
+        Gating <code>CONFIRM DELIVERY</code> behind a courier-signed arrival attestation. Targeting Week 3.
+      </p>
+
+      <div class="prose">
+
+        <h2>Problem</h2>
+        <p>Today (v1) the shipper can click <strong>CONFIRM DELIVERY</strong> the instant the swarm forms. That's too early — at that moment the courier hasn't picked up anything, let alone delivered it. Nothing in the protocol prevents the shipper from confirming a leg the courier has not actually moved.</p>
+        <p>In the single-leg happy path this doesn't cause immediate harm (shipper would only be cheating themselves). But it's bad protocol design:</p>
+        <ul>
+          <li>Eliminates the courier's incentive to move. They get paid whether they drive or not.</li>
+          <li>No audit trail that the courier even claimed to be en-route.</li>
+          <li>Judges / reviewers see a dashboard where <code>CONFIRM DELIVERY</code> is live two seconds after dispatch, which reads as theatre.</li>
+        </ul>
+
+        <h2>Proposed lifecycle</h2>
+        <p>Introduce an intermediate <strong>in-transit</strong> phase between <code>swarm_forming</code> and <code>confirmable</code>:</p>
+        <div class="terminal">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <pre>Package:  listed → swarm_forming → in_transit → delivered
+                                         ↑
+                                         └── courier signals
+                                             coordinator here
+Leg:      pending → picked_up → delivered_claim → confirmed
+                  ↑            ↑                   ↑
+                  courier      courier             shipper</pre>
+        </div>
+        <p>The shipper's <strong>CONFIRM DELIVERY</strong> button is disabled until the leg's courier has pushed a <code>delivered_claim</code> signal to the coordinator. That signal is what unlocks the gate.</p>
+
+        <h2>Design options</h2>
+
+        <h3>Option A — off-chain signed attestation (cheapest)</h3>
+        <p>Courier signs a canonical message:</p>
+        <div class="terminal">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <pre>SWARMHAUL_DELIVERED\n&lt;legId&gt;\n&lt;timestamp&gt;</pre>
+        </div>
+        <p>with their ed25519 agent keypair and POSTs it to <code>POST /swarms/legs/:legId/courier-arrived</code> (new endpoint).</p>
+        <ul>
+          <li>API verifies signature against <code>leg.agentPubkey</code>, stamps <code>leg.deliveredClaimAt</code> + <code>leg.deliveredClaimSig</code>.</li>
+          <li>WS broadcasts <code>LEG_DELIVERED_CLAIM</code>.</li>
+          <li>Dashboard only shows <code>CONFIRM DELIVERY</code> when <code>leg.deliveredClaimAt</code> is set.</li>
+        </ul>
+        <p><strong>Pros:</strong> no Anchor change, no on-chain tx cost, ships in a day.<br/>
+        <strong>Cons:</strong> the claim lives in Postgres only; not a trust anchor.</p>
+
+        <h3>Option B — on-chain courier event (richer provenance)</h3>
+        <p>Add a new instruction <code>courier_arrived</code> to the Anchor program. Signer: courier. Writes a <code>delivered_claim_at</code> field on <code>LegAccount</code>. Emits <code>CourierArrived</code> event.</p>
+        <p><code>confirm_leg</code> gets an additional constraint:</p>
+        <div class="terminal">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <pre>constraint = leg_account.delivered_claim_at > 0
+             @ SwarmError::NoDeliveryClaim,</pre>
+        </div>
+        <p><strong>Pros:</strong> claim is on-chain, tamper-proof, indexable via events. Judges can verify courier claim and shipper receipt are separate on-chain signatures.<br/>
+        <strong>Cons:</strong> second on-chain tx per leg (more fees, more latency), program redeploy.</p>
+
+        <h3>Option C — execution loop + Option B (recommended)</h3>
+        <p>On top of B, the agent daemon gets a small execution loop: after its bid wins and the swarm forms, it runs its itinerary, then signs <code>courier_arrived</code> automatically. For the demo this is fully autonomous — judges watch an agent bid, drive the route (simulated delay), ping arrival, shipper confirms, vault pays out, reputation ticks up.</p>
+        <p><strong>Recommendation for Week 3: B + the execution-loop half of C.</strong></p>
+
+        <h2>UI changes</h2>
+        <p><code>apps/dashboard/src/pages/SwarmDetailView.tsx</code> already has the button wired to <code>leg.status === "pending"</code>. New gate: also require <code>leg.deliveredClaimAt != null</code>.</p>
+        <p>When the claim is missing, render the button as a disabled status pill with the text <code>AWAITING COURIER ARRIVAL…</code> so the user sees the gate explicitly rather than a missing control.</p>
+
+        <h2>Open questions</h2>
+        <ul>
+          <li>Should the courier be able to retract a <code>delivered_claim</code> if they were mistaken? v1: no. Retraction adds attack surface.</li>
+          <li>What happens if the courier signals arrival but the shipper never confirms? A 48h timeout window (shipper's inaction = implicit acceptance) tracks as a separate spec.</li>
+          <li>Multi-leg: each intermediate hop claim is "I handed off to the next courier," not "I delivered to the final recipient." The next-hop courier's <code>courier_arrived</code> on the next leg implicitly attests handoff.</li>
+        </ul>
+
+        <h2>Non-goals</h2>
+        <ul>
+          <li><strong>GPS verification of arrival.</strong> Out of scope forever for the core protocol — that's an oracle problem, not a coordination problem. Anyone can add a verifier plugin that attests GPS off-chain; the protocol stays neutral.</li>
+        </ul>
+
+      </div>
+
+      <div class="doc-nav-footer">
+        <a href="reputation-economics.html" class="doc-nav-prev">← Reputation Economics</a>
+        <a href="registries.html" class="doc-nav-next">Registries &amp; Skills →</a>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span class="footer-copy">© 2026 SwarmHaul. Multi-agent coordination protocol on Solana.</span>
+      <div class="footer-links">
+        <a href="https://github.com/mighty840/swarmhaul" target="_blank">GitHub</a>
+        <a href="https://api.swarmhaul.defited.com/mcp/tools" target="_blank">MCP</a>
+        <a href="https://dashboard.swarmhaul.defited.com" target="_blank">Dashboard</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/sh.js"></script>
+</body>
+</html>

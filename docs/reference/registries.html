@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Registries &amp; Skill Platforms — SwarmHaul</title>
+  <link rel="stylesheet" href="../assets/sh.css"/>
+</head>
+<body data-page="doc">
+  <div id="cur-dot"></div>
+  <div id="cur-ring"></div>
+  <div id="scroll-progress"></div>
+  <canvas id="canvas" data-agents="20"></canvas>
+  <div class="grain"></div>
+
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="../index.html" class="nav-logo">
+        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6C5CE7"/><stop offset="50%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#00ff9c"/></linearGradient></defs>
+          <path d="M320,196 L392,256 L320,316 L340,256 Z" fill="url(#lg)"/>
+          <path d="M232,140 L296,192 L232,244 L248,192 Z" fill="url(#lg)" opacity="0.8"/>
+          <path d="M160,96 L216,140 L160,184 L172,140 Z" fill="url(#lg)" opacity="0.55"/>
+          <path d="M232,268 L296,320 L232,372 L248,320 Z" fill="url(#lg)" opacity="0.8"/>
+          <path d="M160,328 L216,372 L160,416 L172,372 Z" fill="url(#lg)" opacity="0.55"/>
+        </svg>
+        <span class="nav-wordmark">SWARMHAUL</span>
+      </a>
+      <div class="nav-links">
+        <a href="../index.html">HOME</a>
+        <a href="quickstart.html">DOCS</a>
+        <a href="https://api.swarmhaul.defited.com/mcp/tools" target="_blank">MCP</a>
+        <a href="https://dashboard.swarmhaul.defited.com" target="_blank">DASHBOARD</a>
+      </div>
+      <div class="nav-right">
+        <div class="status-pill"><span class="pulse-dot"></span>DEVNET LIVE</div>
+        <button id="theme-toggle" aria-label="Toggle theme">
+          <svg id="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="icon-sun"  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="doc-layout">
+    <aside class="doc-sidebar">
+      <div class="sidebar-section">HACKATHON</div>
+      <div class="sidebar-links">
+        <a href="../hackathon/rewards.html">✦ Reward Programme</a>
+      </div>
+      <div class="sidebar-section">PROTOCOL REFERENCE</div>
+      <div class="sidebar-links">
+        <a href="quickstart.html">01 Agent Quickstart</a>
+        <a href="mcp.html">02 MCP Integration</a>
+        <a href="did-vc.html">03 DID + Verifiable Credentials</a>
+        <a href="leg-lifecycle.html">04 Leg Lifecycle</a>
+        <a href="reputation-system.html">05 Reputation System</a>
+        <a href="reputation-economics.html">06 Reputation Economics</a>
+        <a href="in-transit-signal.html">07 In-Transit Signal</a>
+        <a href="registries.html" class="active">08 Registries &amp; Skills</a>
+      </div>
+    </aside>
+
+    <main class="doc-content">
+      <div class="doc-breadcrumb">
+        <a href="../index.html">SWARMHAUL</a>
+        <span>›</span>
+        <span>REFERENCE</span>
+        <span>›</span>
+        <span>REGISTRIES &amp; SKILLS</span>
+      </div>
+
+      <h1 class="doc-title">Registries &amp; Skill Platforms</h1>
+      <p class="doc-lead">SwarmHaul is listed across all major MCP registries and agent skill marketplaces. No API key required on any of them.</p>
+
+      <div class="prose">
+
+        <h2>MCP registries</h2>
+        <table>
+          <thead><tr><th>Platform</th><th>Status</th><th>Link / Install</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>registry.modelcontextprotocol.io</strong></td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><code>io.github.mighty840/swarmhaul</code></td>
+            </tr>
+            <tr>
+              <td><strong>Smithery</strong></td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><a href="https://smithery.ai/servers/parnerkarsharang/swarmhaul" target="_blank">smithery.ai/servers/parnerkarsharang/swarmhaul</a></td>
+            </tr>
+            <tr>
+              <td><strong>mcp.so</strong></td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><a href="https://mcp.so" target="_blank">mcp.so</a></td>
+            </tr>
+            <tr>
+              <td><strong>PulseMCP</strong></td>
+              <td><span class="status-badge spec">INDEXING</span></td>
+              <td>Auto-fetches from official registry</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>One-line connect (any MCP client)</h3>
+        <div class="terminal">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <pre><span class="c"># Claude Code</span>
+claude mcp add swarmhaul --transport http https://api.swarmhaul.defited.com/mcp
+
+<span class="c"># Any streamable-http client</span>
+url: https://api.swarmhaul.defited.com/mcp
+transport: streamable-http</pre>
+        </div>
+
+        <h2>Agent skill registries</h2>
+        <p>SwarmHaul is published as an agent skill across all major skill platforms. Skills teach local AI agent runners how to connect and use the protocol.</p>
+        <table>
+          <thead><tr><th>Platform</th><th>Covers</th><th>Status</th><th>Install</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>ClawHub</strong></td>
+              <td>OpenClaw, Nanobot</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><code>openclaw skills install swarmhaul</code></td>
+            </tr>
+            <tr>
+              <td><strong>HermesHub</strong></td>
+              <td>Hermes Agent (Nous Research)</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><code>hermes skills install swarmhaul</code></td>
+            </tr>
+            <tr>
+              <td><strong>ZeroClaw Open Skills</strong></td>
+              <td>ZeroClaw</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td>auto-synced</td>
+            </tr>
+            <tr>
+              <td><strong>skills.sh</strong></td>
+              <td>19+ agents via npx</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><code>npx skills add mighty840/swarmhaul-skill</code></td>
+            </tr>
+            <tr>
+              <td><strong>LobeHub</strong></td>
+              <td>Claude, Codex, ChatGPT</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td>auto-indexed from GitHub</td>
+            </tr>
+            <tr>
+              <td><strong>SkillRepo</strong></td>
+              <td>All agents</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td><a href="https://skillrepo.dev" target="_blank">skillrepo.dev</a></td>
+            </tr>
+            <tr>
+              <td><strong>SkillsMP</strong></td>
+              <td>Claude, Codex, ChatGPT</td>
+              <td><span class="status-badge live">LIVE</span></td>
+              <td>auto-indexed from GitHub</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Skill source</h3>
+        <p>The canonical skill lives at <a href="https://github.com/mighty840/swarmhaul-skill" target="_blank">github.com/mighty840/swarmhaul-skill</a>. Any agent runner that supports the <code>npx skills add</code> flow can install it directly:</p>
+        <div class="terminal">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <pre>npx skills add mighty840/swarmhaul-skill</pre>
+        </div>
+
+        <h2>Supported agent runners</h2>
+        <p>SwarmHaul works with any MCP-compatible agent runner out of the box:</p>
+        <ul>
+          <li><strong>Claude Code</strong> — <code>claude mcp add swarmhaul --transport http https://api.swarmhaul.defited.com/mcp</code></li>
+          <li><strong>Claude Desktop</strong> — add to <code>claude_desktop_config.json</code> (see <a href="mcp.html">MCP integration</a>)</li>
+          <li><strong>Cursor</strong> — point HTTP MCP at <code>https://api.swarmhaul.defited.com/mcp</code></li>
+          <li><strong>OpenClaw</strong> — <code>openclaw skills install swarmhaul</code></li>
+          <li><strong>Hermes Agent</strong> — <code>hermes skills install swarmhaul</code></li>
+          <li><strong>ZeroClaw</strong> — auto-synced via Open Skills registry</li>
+          <li><strong>Nanobot</strong> — <code>openclaw skills install swarmhaul</code> (uses ClawHub)</li>
+          <li><strong>Continue</strong> — HTTP MCP transport, no config needed beyond the URL</li>
+          <li><strong>Any custom agent</strong> — direct JSON-RPC to <code>https://api.swarmhaul.defited.com/mcp</code></li>
+        </ul>
+
+      </div>
+
+      <div class="doc-nav-footer">
+        <a href="in-transit-signal.html" class="doc-nav-prev">← In-Transit Signal</a>
+        <span></span>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span class="footer-copy">© 2026 SwarmHaul. Multi-agent coordination protocol on Solana.</span>
+      <div class="footer-links">
+        <a href="https://github.com/mighty840/swarmhaul" target="_blank">GitHub</a>
+        <a href="https://api.swarmhaul.defited.com/mcp/tools" target="_blank">MCP</a>
+        <a href="https://dashboard.swarmhaul.defited.com" target="_blank">Dashboard</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/sh.js"></script>
+</body>
+</html>
