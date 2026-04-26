@@ -250,6 +250,28 @@ footer {
 .terminal pre .p  { color: #4a6e74; }
 .terminal pre .hl { color: var(--text); }
 
+/* ── COPY BUTTON ─────────────────────────────────────────────────────────── */
+.copy-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 4px;
+  background: transparent; border: 1px solid transparent;
+  color: var(--dim); opacity: 0; cursor: pointer !important;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
+}
+.terminal:hover .copy-btn,
+.prose pre:hover .copy-btn { opacity: 1; }
+@media (hover: none) and (pointer: coarse) { .copy-btn { opacity: 1; } }
+.copy-btn:hover {
+  color: var(--accent); border-color: var(--line);
+  background: rgba(0,229,176,0.06);
+}
+.copy-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.copy-btn .icon-check { display: none; }
+.copy-btn.copied { color: var(--accent); opacity: 1; border-color: transparent; }
+.copy-btn.copied .icon-clip  { display: none; }
+.copy-btn.copied .icon-check { display: block; }
+
 /* ── CALLOUT ─────────────────────────────────────────────────────────────── */
 .callout {
   border: 1px solid rgba(0,229,176,0.2);
@@ -444,7 +466,7 @@ footer {
 /* code blocks (pre) inside prose */
 .prose pre {
   background: #020506; border: 1px solid var(--line); border-radius: 6px;
-  padding: 18px 20px; margin: 20px 0; overflow-x: auto;
+  padding: 18px 20px 18px 20px; margin: 20px 0; overflow-x: auto;
   font-family: var(--mono); font-size: 13px; line-height: 1.75;
   color: var(--prose); position: relative;
   -webkit-overflow-scrolling: touch;

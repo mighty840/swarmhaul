@@ -323,4 +323,46 @@
     wrap.appendChild(table);
   });
 
+  // ── CLIPBOARD COPY BUTTONS ────────────────────────────────────────────────
+  const CLIP_SVG  = '<svg class="icon-clip"  viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const CHECK_SVG = '<svg class="icon-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  function addCopyBtn(container, getTextFn) {
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.setAttribute('aria-label', 'Copy code');
+    btn.innerHTML = CLIP_SVG + CHECK_SVG;
+    btn.addEventListener('click', () => {
+      const text = getTextFn();
+      const done = () => {
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => {
+          fallbackCopy(text); done();
+        });
+      } else { fallbackCopy(text); done(); }
+    });
+    container.appendChild(btn);
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+  }
+
+  document.querySelectorAll('.terminal').forEach(term => {
+    const pre = term.querySelector('pre');
+    if (!pre) return;
+    addCopyBtn(term, () => pre.textContent);
+  });
+
+  document.querySelectorAll('.prose pre').forEach(pre => {
+    if (pre.closest('.terminal')) return;
+    addCopyBtn(pre, () => pre.textContent);
+  });
+
 })();
