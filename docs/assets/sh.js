@@ -267,4 +267,60 @@
     }
   });
 
+  // ── MOBILE NAV + SIDEBAR DRAWER ───────────────────────────────────────────
+  const sidebar = document.querySelector('.doc-sidebar');
+  if (sidebar) {
+    // Inject hamburger button into nav-right
+    const navRight = document.querySelector('.nav-right');
+    if (navRight) {
+      const menuBtn = document.createElement('button');
+      menuBtn.id = 'nav-menu';
+      menuBtn.setAttribute('aria-label', 'Open navigation');
+      menuBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg>';
+      navRight.prepend(menuBtn);
+    }
+
+    // Inject overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+
+    // Inject close button inside sidebar
+    const closeBtn = document.createElement('button');
+    closeBtn.id = 'sidebar-close';
+    closeBtn.setAttribute('aria-label', 'Close navigation');
+    closeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>';
+    sidebar.prepend(closeBtn);
+
+    function openSidebar() {
+      sidebar.classList.add('open');
+      overlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('nav-menu').addEventListener('click', openSidebar);
+    overlay.addEventListener('click', closeSidebar);
+    closeBtn.addEventListener('click', closeSidebar);
+
+    // Close on sidebar link click (mobile navigation)
+    sidebar.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', () => {
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+  }
+
+  // ── WRAP TABLES FOR MOBILE SCROLL ─────────────────────────────────────────
+  document.querySelectorAll('.prose table').forEach(table => {
+    const wrap = document.createElement('div');
+    wrap.className = 'table-wrap';
+    table.parentNode.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+
 })();
