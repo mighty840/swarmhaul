@@ -367,6 +367,25 @@ export function EconomyView({
                   >
                     {shortenPubkey(agent.agentPubkey)}
                   </span>
+                  {agent.mode && (
+                    <span
+                      className="text-[8px] font-bold tracking-[0.12em] px-1.5 py-0.5 shrink-0"
+                      style={{
+                        color:
+                          agent.mode === "courier" ? "var(--color-amber)"
+                          : agent.mode === "digital" ? "var(--color-cyan)"
+                          : "var(--color-magenta)",
+                        border: `1px solid ${
+                          agent.mode === "courier" ? "var(--color-amber)"
+                          : agent.mode === "digital" ? "var(--color-cyan)"
+                          : "var(--color-magenta)"
+                        }`,
+                        opacity: 0.85,
+                      }}
+                    >
+                      {agent.mode.toUpperCase()}
+                    </span>
+                  )}
                   <span className="text-[10px] text-[var(--color-steel)] tabular-nums font-semibold">
                     {agent.legsCompleted}/{agent.legsAccepted} LEGS
                   </span>

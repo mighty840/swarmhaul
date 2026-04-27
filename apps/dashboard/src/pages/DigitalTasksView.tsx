@@ -132,6 +132,9 @@ function LegNode({
   const statusColor = STATUS_COLOR[leg.status] ?? "var(--color-ash)";
   const isActive = leg.status === "in_progress" || leg.status === "assigned";
   const isDone = leg.status === "completed";
+  const isVerify = leg.legType === "verify";
+  const verifyColor = "var(--color-amber)";
+  const nodeColor = isVerify ? verifyColor : color;
 
   return (
     <div className="flex items-start gap-0 min-w-0">
@@ -142,23 +145,32 @@ function LegNode({
           onClick={() => setExpanded((e) => !e)}
           className="text-left border transition-colors hover:bg-[var(--color-elevated)]"
           style={{
-            borderColor: isDone ? color : isActive ? statusColor : "var(--color-line)",
-            backgroundColor: expanded ? "var(--color-elevated)" : undefined,
+            borderColor: isDone ? nodeColor : isActive ? statusColor : isVerify ? `${verifyColor}44` : "var(--color-line)",
+            backgroundColor: isVerify ? "rgba(255,170,0,0.04)" : expanded ? "var(--color-elevated)" : undefined,
             boxShadow: isActive ? `0 0 8px ${statusColor}22` : undefined,
           }}
         >
           {/* Node header */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "var(--color-line)" }}>
+          <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: isVerify ? `${verifyColor}33` : "var(--color-line)" }}>
             <span
               className="text-[9px] font-bold tracking-[0.16em] w-5 text-center shrink-0"
-              style={{ color }}
+              style={{ color: nodeColor }}
             >
-              L{idx + 1}
+              {isVerify ? "VFY" : `L${idx + 1}`}
             </span>
+            {isVerify && (
+              <span className="text-[8px] tracking-[0.12em] font-bold shrink-0" style={{ color: verifyColor, opacity: 0.7 }}>
+                ◈
+              </span>
+            )}
             <span className="text-[9px] font-semibold tracking-[0.14em] uppercase flex-1 truncate" style={{ color: statusColor }}>
               {leg.status.replace(/_/g, " ")}
             </span>
-            {isDone && <span style={{ color }} className="text-[10px]">✓</span>}
+            {isDone && (
+              <span style={{ color: nodeColor }} className="text-[10px]">
+                {isVerify ? "◉" : "✓"}
+              </span>
+            )}
             {isActive && (
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor, boxShadow: `0 0 4px ${statusColor}` }} />
             )}
@@ -484,14 +496,20 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
               <div className="label-strong mb-2" style={{ color: "var(--color-phosphor)" }}>
                 ◈ AI PLANNER — {planLegs.length} LEG{planLegs.length !== 1 ? "S" : ""} PLANNED
               </div>
-              {planLegs.map((leg, i) => (
-                <div key={i} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
-                  <span style={{ color: LEG_COLORS[i % LEG_COLORS.length] }} className="font-bold shrink-0">
-                    L{i + 1}
-                  </span>
-                  <span>{("instruction" in leg ? leg.instruction : "").slice(0, 100)}{"instruction" in leg && leg.instruction.length > 100 ? "…" : ""}</span>
-                </div>
-              ))}
+              {planLegs.map((leg, i) => {
+                const isVerify = "legType" in leg && leg.legType === "verify";
+                return (
+                  <div key={i} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
+                    <span
+                      style={{ color: isVerify ? "var(--color-amber)" : LEG_COLORS[i % LEG_COLORS.length] }}
+                      className="font-bold shrink-0"
+                    >
+                      {isVerify ? "VFY" : `L${i + 1}`}
+                    </span>
+                    <span>{("instruction" in leg ? leg.instruction : "").slice(0, 100)}{"instruction" in leg && leg.instruction.length > 100 ? "…" : ""}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -514,14 +532,20 @@ function PostTaskForm({ onPosted }: { onPosted: (task: DigitalTask) => void }) {
                 </a>
               )}
               <div className="space-y-1 mt-2">
-                {doneTask.legs.map((leg, i) => (
-                  <div key={leg.id} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
-                    <span style={{ color: LEG_COLORS[i % LEG_COLORS.length] }} className="font-bold shrink-0">
-                      L{i + 1}
-                    </span>
-                    <span className="truncate">{leg.instruction.slice(0, 80)}{leg.instruction.length > 80 ? "…" : ""}</span>
-                  </div>
-                ))}
+                {doneTask.legs.map((leg, i) => {
+                  const isVerify = leg.legType === "verify";
+                  return (
+                    <div key={leg.id} className="flex items-start gap-2 text-[9px] text-[var(--color-ash)]">
+                      <span
+                        style={{ color: isVerify ? "var(--color-amber)" : LEG_COLORS[i % LEG_COLORS.length] }}
+                        className="font-bold shrink-0"
+                      >
+                        {isVerify ? "VFY" : `L${i + 1}`}
+                      </span>
+                      <span className="truncate">{leg.instruction.slice(0, 80)}{leg.instruction.length > 80 ? "…" : ""}</span>
+                    </div>
+                  );
+                })}
               </div>
               <button type="button" onClick={reset} className="btn-ghost text-[10px] mt-2">
                 POST ANOTHER ▸

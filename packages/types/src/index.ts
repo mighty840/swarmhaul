@@ -99,6 +99,8 @@ export interface AgentReputation {
   legsAccepted: number;
   avgDeliveryTimeSec: number;
   reliabilityScore: number; // 0-100
+  /** "courier" | "digital" | "both" — set by agent heartbeat on startup */
+  mode?: string;
   registeredAt: Date;
   totalEarningsLamports?: string; // serialised BigInt, only on leaderboard
 }
@@ -128,6 +130,8 @@ export interface DigitalLeg {
   id: string;
   taskId: string;
   sequence: number;
+  /** "work" (default) | "verify" — verify legs check the preceding work leg's output */
+  legType?: string;
   instruction: string;
   agentPubkey?: string;
   bidSol?: number;

@@ -51,6 +51,13 @@ async function main() {
   const isDigital = config.mode === "digital" || config.mode === "both";
   console.log(`[SwarmHaul Agent] Mode: ${config.mode} (courier=${isCourier}, digital=${isDigital})`);
 
+  // Advertise mode to the API so the leaderboard can show mode badges.
+  fetch(`${config.apiEndpoint}/reputation/${agentPubkey}/mode`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: config.mode }),
+  }).catch(() => {});
+
   while (true) {
     if (isCourier) {
       try {

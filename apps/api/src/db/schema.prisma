@@ -101,6 +101,8 @@ model AgentReputation {
   legsAccepted       Int      @default(0)
   avgDeliveryTimeSec Float    @default(0)
   reliabilityScore   Float    @default(50)
+  /// "courier" | "digital" | "both" — set by agent heartbeat on startup
+  mode               String   @default("both")
   updatedAt          DateTime @updatedAt
 }
 
@@ -138,6 +140,8 @@ model DigitalLeg {
   taskId          String
   task            DigitalTask @relation(fields: [taskId], references: [id])
   sequence        Int
+  /// "work" (default) | "verify" — verify legs check the preceding work leg's output
+  legType         String      @default("work")
   instruction     String
   agentPubkey     String?
   bidSol          Float?

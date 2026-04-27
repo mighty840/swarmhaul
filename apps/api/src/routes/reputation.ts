@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { z } from "zod";
+import { z } from "zod";
 import { prisma } from "../db/client.js";
 import { ReputationPubkeyParam } from "../schemas/index.js";
 
@@ -44,6 +44,28 @@ export async function reputationRoutes(app: FastifyInstance) {
       });
       if (!rep) return reply.code(404).send({ error: "Agent not found" });
       return rep;
+    },
+  );
+
+  // Agents call this on startup to advertise their work mode.
+  // Creates the reputation row if it doesn't exist yet.
+  app.put(
+    "/:pubkey/mode",
+    {
+      schema: {
+        params: ReputationPubkeyParam,
+        body: z.object({ mode: z.enum(["courier", "digital", "both"]) }),
+      },
+    },
+    async (req) => {
+      const { pubkey } = req.params as RepParams;
+      const { mode } = req.body as { mode: string };
+      const rep = await prisma.agentReputation.upsert({
+        where: { agentPubkey: pubkey },
+        update: { mode },
+        create: { agentPubkey: pubkey, mode },
+      });
+      return { agentPubkey: rep.agentPubkey, mode: rep.mode };
     },
   );
 }

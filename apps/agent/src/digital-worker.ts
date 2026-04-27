@@ -12,10 +12,25 @@ async function callLlm(
   instruction: string,
   previousResult: string | null | undefined,
   config: AgentConfig,
+  isVerify = false,
 ): Promise<string> {
   const messages: Array<{ role: string; content: string }> = [];
 
-  if (previousResult) {
+  if (isVerify) {
+    messages.push({
+      role: "system",
+      content:
+        "You are an independent quality-assurance agent in a multi-agent swarm. " +
+        "Your only job is to verify the output produced by the previous agent. " +
+        "Do NOT produce new content. " +
+        (previousResult
+          ? `The work agent produced:\n\n${previousResult}\n\n`
+          : "No prior output was found — treat this as a failed verification. ") +
+        "Respond ONLY with one of:\n" +
+        "VERIFIED: <one sentence summarising what was confirmed>\n" +
+        "FAILED: <specific reason the output is inadequate>",
+    });
+  } else if (previousResult) {
     messages.push({
       role: "system",
       content: `You are one agent in a multi-agent swarm. A previous agent produced this result:\n\n${previousResult}\n\nBuild on it in your response.`,
@@ -59,10 +74,15 @@ async function executeLeg(
   console.log(`[Digital] Executing leg ${leg.sequence + 1}/${task.legs.length} of "${task.title}"`);
 
   try {
-    // Find the result from the previous completed leg, if any
-    const prevLeg = task.legs
-      .filter((l) => l.sequence < leg.sequence && l.status === "completed")
-      .sort((a, b) => b.sequence - a.sequence)[0];
+    const isVerify = leg.legType === "verify";
+
+    // For verify legs, find the work leg immediately preceding this one.
+    // For work legs, find the most recent completed leg to build on.
+    const prevLeg = isVerify
+      ? task.legs.find((l) => l.sequence === leg.sequence - 1 && l.status === "completed")
+      : task.legs
+          .filter((l) => l.sequence < leg.sequence && l.status === "completed")
+          .sort((a, b) => b.sequence - a.sequence)[0];
 
     // Signal in_progress — abort if rejected (e.g. leg taken by another agent)
     const startRes = await fetch(`${config.apiEndpoint}/digital-tasks/${task.id}/legs/${leg.id}/start`, {
@@ -75,7 +95,7 @@ async function executeLeg(
       return;
     }
 
-    const result = await callLlm(leg.instruction, prevLeg?.result, config);
+    const result = await callLlm(leg.instruction, prevLeg?.result, config, isVerify);
 
     const completeRes = await fetch(
       `${config.apiEndpoint}/digital-tasks/${task.id}/legs/${leg.id}/complete`,
@@ -126,14 +146,18 @@ export async function runDigitalWorkerPass(
     // Only bid if we hold no legs in this task already
     if (myLegs.length > 0) continue;
 
-    // Find the next eligible open leg — sequential: only bid if previous leg is done
+    // Find the next eligible open leg — sequential: only bid if previous leg is done.
+    // Skip verify legs whose preceding work leg was completed by this agent.
     const nextLeg = task.legs
       .filter((l) => l.status === "open" && !bidAttempted.has(l.id))
       .sort((a, b) => a.sequence - b.sequence)
       .find((l) => {
         if (l.sequence === 0) return true;
         const prev = task.legs.find((p) => p.sequence === l.sequence - 1);
-        return prev?.status === "completed";
+        if (prev?.status !== "completed") return false;
+        // Don't self-verify
+        if (l.legType === "verify" && prev.agentPubkey === agentPubkey) return false;
+        return true;
       });
 
     if (!nextLeg) continue;

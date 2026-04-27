@@ -40,10 +40,22 @@ const CreateBody = z.object({
   title: z.string().min(1),
   description: z.string().optional().default(""),
   maxBudgetSol: z.number().positive(),
-  legs: z.array(z.object({ instruction: z.string() })).max(10).optional(),
+  legs: z.array(z.object({ instruction: z.string(), legType: z.string().optional() })).max(10).optional(),
 });
 
-async function planLegs(title: string, description: string): Promise<Array<{ instruction: string }>> {
+function buildVerifyInstruction(taskTitle: string, workLegSequence: number): string {
+  return (
+    `VERIFY LEG — do not produce new content. ` +
+    `Review the output of leg ${workLegSequence + 1} for task "${taskTitle}". ` +
+    `Check: (1) the result is non-empty, (2) it is relevant to the task goal, ` +
+    `(3) it does not contain placeholder text like "..." or "TODO". ` +
+    `Respond ONLY with one of:\n` +
+    `VERIFIED: <one sentence summarising what was confirmed>\n` +
+    `FAILED: <specific reason the output is inadequate>`
+  );
+}
+
+async function planLegs(title: string, description: string): Promise<Array<{ instruction: string; legType: string }>> {
   const llmEndpoint = process.env.LITELLM_ENDPOINT ?? "https://llm-dev.meghsakha.com";
   const llmModel = process.env.LITELLM_MODEL ?? "gpt-oss-120b";
   const apiKey = process.env.LITELLM_API_KEY ?? process.env.LLM_API_KEY;
@@ -78,11 +90,27 @@ Respond ONLY with valid JSON, no markdown: {"legs": [{"instruction": "..."}]}`;
     const data = await res.json() as { choices: Array<{ message: { content: string } }> };
     const raw = data.choices[0]?.message?.content ?? "";
     const json = JSON.parse(raw.replace(/```json|```/g, "").trim()) as { legs: Array<{ instruction: string }> };
-    if (Array.isArray(json.legs) && json.legs.length > 0) return json.legs.slice(0, 4);
+    if (Array.isArray(json.legs) && json.legs.length > 0) {
+      return interleaveVerifyLegs(json.legs.slice(0, 4).map((l) => l.instruction), title);
+    }
   } catch {
     // fallback
   }
-  return [{ instruction: `${title}: ${description}` }];
+  return interleaveVerifyLegs([`${title}: ${description}`], title);
+}
+
+// For each work leg, append an immediately following verify leg.
+// Work legs and verify legs alternate: [work0, verify0, work1, verify1, ...]
+function interleaveVerifyLegs(
+  workInstructions: string[],
+  title: string,
+): Array<{ instruction: string; legType: string }> {
+  const result: Array<{ instruction: string; legType: string }> = [];
+  workInstructions.forEach((instruction, i) => {
+    result.push({ instruction, legType: "work" });
+    result.push({ instruction: buildVerifyInstruction(title, i), legType: "verify" });
+  });
+  return result;
 }
 
 const IdParam = z.object({ id: z.string().uuid() });
@@ -114,7 +142,7 @@ const ConfirmBody = z.object({
   taskId: z.string().uuid(),
   onChainTask: z.string(),
   onChainVault: z.string(),
-  legs: z.array(z.object({ instruction: z.string() })),
+  legs: z.array(z.object({ instruction: z.string(), legType: z.string().optional() })),
 });
 
 export async function digitalTaskRoutes(app: FastifyInstance) {
@@ -205,6 +233,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
             create: body.legs.map((l, i) => ({
               sequence: i,
               instruction: l.instruction,
+              legType: l.legType ?? "work",
             })),
           },
         },
@@ -242,7 +271,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
           description: body.description,
           maxBudgetSol: body.maxBudgetSol,
           legs: {
-            create: legs.map((l, i) => ({ sequence: i, instruction: l.instruction })),
+            create: legs.map((l, i) => ({ sequence: i, instruction: l.instruction, legType: l.legType ?? "work" })),
           },
         },
         include: { legs: { orderBy: { sequence: "asc" } } },
@@ -268,6 +297,16 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       const leg = await prisma.digitalLeg.findUnique({ where: { id: legId } });
       if (!leg) return reply.code(404).send({ error: "Leg not found" });
       if (leg.status !== "open") return reply.code(409).send({ error: "Leg already assigned" });
+
+      // Block agent from verifying their own work leg
+      if (leg.legType === "verify" && leg.sequence > 0) {
+        const workLeg = await prisma.digitalLeg.findFirst({
+          where: { taskId: leg.taskId, sequence: leg.sequence - 1 },
+        });
+        if (workLeg?.agentPubkey === agentPubkey) {
+          return reply.code(409).send({ error: "Cannot verify your own work leg" });
+        }
+      }
 
       // Enforce one leg per agent per task
       const alreadyHolding = await prisma.digitalLeg.findFirst({
