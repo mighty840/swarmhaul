@@ -37,6 +37,16 @@ interface Activity {
     maxBudgetSol: number;
     listedAt: string;
   }>;
+  recentDigitalLegs?: Array<{
+    id: string;
+    taskId: string;
+    sequence: number;
+    legType: string | null;
+    agentPubkey: string | null;
+    result: string | null;
+    completedAt: string | null;
+    task: { title: string };
+  }>;
 }
 
 export function useSwarmData() {

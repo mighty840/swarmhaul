@@ -67,7 +67,7 @@ export async function economyRoutes(app: FastifyInstance) {
 
   // Recent activity feed
   app.get("/activity", async () => {
-    const [recentBids, recentLegs, recentPackages, recentDigitalTasks] = await Promise.all([
+    const [recentBids, recentLegs, recentPackages, recentDigitalTasks, recentDigitalLegs] = await Promise.all([
       prisma.bid.findMany({
         orderBy: { createdAt: "desc" },
         take: 10,
@@ -115,8 +115,23 @@ export async function economyRoutes(app: FastifyInstance) {
           legs: { select: { status: true } },
         },
       }),
+      prisma.digitalLeg.findMany({
+        where: { status: "completed", result: { not: null } },
+        orderBy: { completedAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          taskId: true,
+          sequence: true,
+          legType: true,
+          agentPubkey: true,
+          result: true,
+          completedAt: true,
+          task: { select: { title: true } },
+        },
+      }),
     ]);
 
-    return { recentBids, recentLegs, recentPackages, recentDigitalTasks };
+    return { recentBids, recentLegs, recentPackages, recentDigitalTasks, recentDigitalLegs };
   });
 }

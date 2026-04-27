@@ -41,6 +41,16 @@ interface Activity {
     listedAt: string;
     legs: Array<{ status: string }>;
   }>;
+  recentDigitalLegs?: Array<{
+    id: string;
+    taskId: string;
+    sequence: number;
+    legType: string | null;
+    agentPubkey: string | null;
+    result: string | null;
+    completedAt: string | null;
+    task: { title: string };
+  }>;
 }
 
 function shortenPubkey(pk: string): string {
@@ -256,16 +266,66 @@ export function EconomyView({
         {/* LEFT — Agent reasoning stream (the killer feature) */}
         <Panel
           title="AGENT REASONING ▸ STDOUT"
-          meta={`${activity?.recentBids.length ?? 0} ENTRIES`}
+          meta={`${(activity?.recentBids.length ?? 0) + (activity?.recentDigitalLegs?.length ?? 0)} ENTRIES`}
           accent="phosphor"
           className="col-span-12 lg:col-span-7 row-span-2"
         >
           <div className="p-3 max-h-[520px] overflow-y-auto font-mono">
-            {!activity?.recentBids.length && (
+            {!activity?.recentBids.length && !activity?.recentDigitalLegs?.length && (
               <div className="text-[var(--color-ash)] text-[11px] p-4 text-center">
                 ░░ no agent activity ░░
               </div>
             )}
+            {/* Digital leg results — VERIFIED/FAILED inline */}
+            {activity?.recentDigitalLegs?.map((leg) => {
+              const pubkey = leg.agentPubkey ?? "unknown";
+              const color = agentColorFor(pubkey);
+              const isVerify = leg.legType === "verify";
+              const typeColor = isVerify ? "var(--color-amber)" : "var(--color-cyan)";
+              const isVerified = leg.result?.startsWith("VERIFIED");
+              const resultColor = isVerify
+                ? isVerified ? "var(--color-phosphor)" : "var(--color-blood)"
+                : "var(--color-steel)";
+              return (
+                <div
+                  key={leg.id}
+                  className="border-l-2 pl-3 py-2 mb-2 hover:bg-[var(--color-hover)]"
+                  style={{ borderColor: typeColor }}
+                >
+                  <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                    <span
+                      className="text-[8px] font-bold tracking-[0.14em] px-1 py-0.5 shrink-0"
+                      style={{ color: typeColor, border: `1px solid ${typeColor}`, opacity: 0.8 }}
+                    >
+                      {isVerify ? "VFY" : "WORK"}
+                    </span>
+                    <span className="text-[11px] font-bold tracking-[0.04em]" style={{ color }}>
+                      {shortenPubkey(pubkey)}
+                    </span>
+                    <span className="text-[var(--color-ash)] text-[9px] font-semibold tracking-[0.12em] uppercase">
+                      {leg.completedAt ? timeAgo(leg.completedAt) + " AGO" : ""}
+                    </span>
+                    <span className="text-[var(--color-ash)] text-[9px]">▸</span>
+                    <button
+                      onClick={() => onOpenDigitalTask?.(leg.taskId)}
+                      className="text-[var(--color-steel)] text-[10px] hover:text-[var(--color-cyan)] transition-colors truncate max-w-[120px]"
+                    >
+                      {leg.task.title.slice(0, 28)}{leg.task.title.length > 28 ? "…" : ""}
+                    </button>
+                    <span className="text-[9px] text-[var(--color-ash)] ml-auto">
+                      L{leg.sequence + 1}
+                    </span>
+                  </div>
+                  {leg.result && (
+                    <div className="text-[10px] leading-relaxed" style={{ color: resultColor }}>
+                      <span className="text-[var(--color-ash)]">$ </span>
+                      {leg.result.slice(0, 180)}{leg.result.length > 180 ? "…" : ""}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {/* Courier bid reasoning */}
             {activity?.recentBids.map((bid) => {
               const color = agentColorFor(bid.agentPubkey);
               return (
@@ -275,6 +335,12 @@ export function EconomyView({
                   style={{ borderColor: color }}
                 >
                   <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                    <span
+                      className="text-[8px] font-bold tracking-[0.14em] px-1 py-0.5 shrink-0"
+                      style={{ color: "var(--color-amber)", border: "1px solid var(--color-amber)", opacity: 0.8 }}
+                    >
+                      BID
+                    </span>
                     <span
                       className="text-[11px] font-bold tracking-[0.04em]"
                       style={{ color }}
