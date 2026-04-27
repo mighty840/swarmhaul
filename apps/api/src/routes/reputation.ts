@@ -47,6 +47,34 @@ export async function reputationRoutes(app: FastifyInstance) {
     },
   );
 
+  // Admin reset — requires Authorization: Bearer <RESET_SECRET>
+  app.post(
+    "/reset",
+    {
+      schema: {
+        body: z.object({ pubkeys: z.array(z.string()).min(1) }),
+      },
+    },
+    async (req, reply) => {
+      const secret = process.env.RESET_SECRET;
+      if (!secret) return reply.code(403).send({ error: "Reset not enabled" });
+      const auth = (req.headers.authorization ?? "").replace("Bearer ", "");
+      if (auth !== secret) return reply.code(401).send({ error: "Unauthorized" });
+
+      const { pubkeys } = req.body as { pubkeys: string[] };
+      const reset = await Promise.all(
+        pubkeys.map((pk) =>
+          prisma.agentReputation.upsert({
+            where: { agentPubkey: pk },
+            update: { legsCompleted: 0, legsAccepted: 0, avgDeliveryTimeSec: 0, reliabilityScore: 50 },
+            create: { agentPubkey: pk, legsCompleted: 0, legsAccepted: 0, avgDeliveryTimeSec: 0, reliabilityScore: 50 },
+          }),
+        ),
+      );
+      return { reset: reset.map((r) => ({ agentPubkey: r.agentPubkey, reliabilityScore: r.reliabilityScore })) };
+    },
+  );
+
   // Agents call this on startup to advertise their work mode.
   // Creates the reputation row if it doesn't exist yet.
   app.put(
