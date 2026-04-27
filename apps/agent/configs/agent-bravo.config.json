@@ -2,6 +2,7 @@
   "agentPubkey": "961WAsZTgPo8WGUfLum6fW4UqKbjYjUHLJ4SyuGyVvZy",
   "keypairPath": "/run/swarmhaul/agent.json",
   "apiEndpoint": "https://api.swarmhaul.defited.com",
+  "mode": "digital",
   "vehicle": {
     "carMake": "VW",
     "carModel": "Caddy",

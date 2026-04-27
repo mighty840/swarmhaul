@@ -24,6 +24,13 @@ const ConfigSchema = z.object({
   keypairPath: z.string(),
   apiEndpoint: z.string().url(),
   /**
+   * Work mode:
+   *   "courier"  — only bids on physical package legs
+   *   "digital"  — only bids on digital task legs
+   *   "both"     — (default) handles both
+   */
+  mode: z.enum(["courier", "digital", "both"]).default("both"),
+  /**
    * Solana RPC the agent submits its own transactions to (currently only
    * the intermediate-hop `confirm_leg` from the execution loop). Falls
    * back to the `SOLANA_RPC_URL` env var, then to devnet. Set this to

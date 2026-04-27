@@ -38,6 +38,53 @@ export async function devRoutes(app: FastifyInstance) {
   );
 
   /**
+   * POST /dev/reset-reputation?pubkeys=A,B,C
+   *
+   * Resets AgentReputation rows for the listed pubkeys back to baseline
+   * (reliabilityScore 50, legsCompleted 0, legsAccepted 0). Useful to
+   * let external hackathon agents compete fairly after our demo agents
+   * have accumulated a head start.
+   *
+   * If no pubkeys param is given, resets ALL known agents.
+   */
+  app.post("/reset-reputation", async (req, reply) => {
+    const raw = (req.query as Record<string, string>).pubkeys ?? "";
+    const targets = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (targets.length === 0) {
+      return reply
+        .code(400)
+        .send({ error: "Provide ?pubkeys=A,B,C — refusing to reset all without explicit list" });
+    }
+
+    const results = await Promise.all(
+      targets.map((pk) =>
+        prisma.agentReputation.upsert({
+          where: { agentPubkey: pk },
+          update: {
+            reliabilityScore: 50,
+            legsCompleted: 0,
+            legsAccepted: 0,
+            avgDeliveryTimeSec: 0,
+          },
+          create: {
+            agentPubkey: pk,
+            reliabilityScore: 50,
+            legsCompleted: 0,
+            legsAccepted: 0,
+            avgDeliveryTimeSec: 0,
+          },
+        }),
+      ),
+    );
+
+    return { reset: results.map((r) => ({ agentPubkey: r.agentPubkey, reliabilityScore: r.reliabilityScore })) };
+  });
+
+  /**
    * POST /dev/seed-multi-leg
    *
    * Creates a 2-leg swarm end-to-end:

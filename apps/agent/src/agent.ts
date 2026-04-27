@@ -47,89 +47,97 @@ async function main() {
     `[SwarmHaul Agent] Simulated transit delay: ${config.simTransitDelayMs} ms`,
   );
 
+  const isCourier = config.mode === "courier" || config.mode === "both";
+  const isDigital = config.mode === "digital" || config.mode === "both";
+  console.log(`[SwarmHaul Agent] Mode: ${config.mode} (courier=${isCourier}, digital=${isDigital})`);
+
   while (true) {
-    try {
-      const res = await fetch(`${config.apiEndpoint}/packages`);
-      const openPackages = await res.json();
+    if (isCourier) {
+      try {
+        const res = await fetch(`${config.apiEndpoint}/packages`);
+        const openPackages = await res.json();
 
-      // Execution loop: sign handoff attestations for any leg whose
-      // previous-hop courier has dropped to this agent. Runs on every
-      // poll using the same /packages snapshot as the bid loop.
-      await runExecutorPass({
-        packages: openPackages as ExecutorPackage[],
-        config,
-        keypair,
-        connection,
-        agentPubkey,
-        state: executorState,
-      });
-
-      for (const pkg of openPackages) {
-        if (pkg.status !== "listed") continue;
-
-        const leg = computeOptimalLeg(config.itinerary, pkg);
-        if (!leg) continue;
-
-        if (detourExceedsLimit(leg, config.bidSettings)) continue;
-
-        const costSol = computeCost(leg, config.vehicle);
-
-        // LLM reasoning layer — agent decides whether to bid
-        const decision = await reasonAboutBid(pkg, leg, costSol, config);
-        if (!decision.shouldBid) {
-          console.log(`[Agent] Skipping ${pkg.id}: ${decision.reasoning}`);
-          continue;
-        }
-
-        console.log(
-          `[Agent] Bidding on ${pkg.id}: ${costSol} SOL — ${decision.reasoning}`,
-        );
-
-        const bidUrl = `${config.apiEndpoint}/bids`;
-        const bidBody = JSON.stringify({
-          packageId: pkg.id,
-          agentPubkey,
-          pickupLat: leg.pickupLocation.lat,
-          pickupLng: leg.pickupLocation.lng,
-          dropoffLat: leg.dropoffLocation.lat,
-          dropoffLng: leg.dropoffLocation.lng,
-          distanceKm: leg.distanceKm,
-          estimatedDurationMin: Math.round(leg.estimatedDurationMin),
-          costSol,
-          reasoning: decision.reasoning,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        });
-        const authHeaders = buildAuthHeaders(
+        // Execution loop: sign handoff attestations for any leg whose
+        // previous-hop courier has dropped to this agent. Runs on every
+        // poll using the same /packages snapshot as the bid loop.
+        await runExecutorPass({
+          packages: openPackages as ExecutorPackage[],
+          config,
           keypair,
-          "POST",
-          canonicalPath(bidUrl),
-          bidBody,
-        );
-
-        const bidRes = await fetch(bidUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-          },
-          body: bidBody,
+          connection,
+          agentPubkey,
+          state: executorState,
         });
-        if (!bidRes.ok) {
-          const msg = await bidRes.text();
-          console.error(
-            `[Agent] Bid rejected (${bidRes.status}): ${msg.slice(0, 200)}`,
+
+        for (const pkg of openPackages) {
+          if (pkg.status !== "listed") continue;
+
+          const leg = computeOptimalLeg(config.itinerary, pkg);
+          if (!leg) continue;
+
+          if (detourExceedsLimit(leg, config.bidSettings)) continue;
+
+          const costSol = computeCost(leg, config.vehicle);
+
+          // LLM reasoning layer — agent decides whether to bid
+          const decision = await reasonAboutBid(pkg, leg, costSol, config);
+          if (!decision.shouldBid) {
+            console.log(`[Agent] Skipping ${pkg.id}: ${decision.reasoning}`);
+            continue;
+          }
+
+          console.log(
+            `[Agent] Bidding on ${pkg.id}: ${costSol} SOL — ${decision.reasoning}`,
           );
+
+          const bidUrl = `${config.apiEndpoint}/bids`;
+          const bidBody = JSON.stringify({
+            packageId: pkg.id,
+            agentPubkey,
+            pickupLat: leg.pickupLocation.lat,
+            pickupLng: leg.pickupLocation.lng,
+            dropoffLat: leg.dropoffLocation.lat,
+            dropoffLng: leg.dropoffLocation.lng,
+            distanceKm: leg.distanceKm,
+            estimatedDurationMin: Math.round(leg.estimatedDurationMin),
+            costSol,
+            reasoning: decision.reasoning,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          });
+          const authHeaders = buildAuthHeaders(
+            keypair,
+            "POST",
+            canonicalPath(bidUrl),
+            bidBody,
+          );
+
+          const bidRes = await fetch(bidUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders,
+            },
+            body: bidBody,
+          });
+          if (!bidRes.ok) {
+            const msg = await bidRes.text();
+            console.error(
+              `[Agent] Bid rejected (${bidRes.status}): ${msg.slice(0, 200)}`,
+            );
+          }
         }
+      } catch (err) {
+        console.error("[Agent] Poll error:", err);
       }
-    } catch (err) {
-      console.error("[Agent] Poll error:", err);
     }
 
-    // Digital task worker pass — runs alongside physical package polling
-    try {
-      await runDigitalWorkerPass(agentPubkey, config);
-    } catch (err) {
-      console.error("[Agent] Digital worker error:", err);
+    // Digital task worker pass
+    if (isDigital) {
+      try {
+        await runDigitalWorkerPass(agentPubkey, config);
+      } catch (err) {
+        console.error("[Agent] Digital worker error:", err);
+      }
     }
 
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));

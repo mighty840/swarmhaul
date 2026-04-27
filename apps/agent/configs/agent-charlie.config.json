@@ -2,6 +2,7 @@
   "agentPubkey": "8ba9B9MouLb9QbAzvxcu3ob91zPy5eGA8y21QrraWHHw",
   "keypairPath": "/run/swarmhaul/agent.json",
   "apiEndpoint": "https://api.swarmhaul.defited.com",
+  "mode": "courier",
   "vehicle": {
     "carMake": "Mercedes",
     "carModel": "Sprinter",

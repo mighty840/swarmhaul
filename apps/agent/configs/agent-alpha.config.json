@@ -2,6 +2,7 @@
   "agentPubkey": "7FBqQRTgCgCrvavzxXRAnug8xiX9NmjaqJXc59KiQFyu",
   "keypairPath": "/run/swarmhaul/agent.json",
   "apiEndpoint": "https://api.swarmhaul.defited.com",
+  "mode": "courier",
   "vehicle": {
     "carMake": "Fiat",
     "carModel": "Panda",
