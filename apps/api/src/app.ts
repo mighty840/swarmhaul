@@ -23,6 +23,7 @@ import { devRoutes } from "./routes/dev.js";
 import { didRoutes } from "./routes/did.js";
 import { digitalTaskRoutes } from "./routes/digital-tasks.js";
 import { closeBidWindows } from "./services/bid-window-closer.js";
+import { watchLegTimeouts } from "./services/leg-timeout-watcher.js";
 import { rewardClaimRoutes } from "./routes/reward-claims.js";
 import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
@@ -167,6 +168,9 @@ export async function buildApp(opts?: { logger?: boolean }) {
 
   // Close expired bid windows every 2 seconds and assign winners.
   setInterval(() => void closeBidWindows(), 2_000);
+
+  // Auto-dispute physical legs that exceed 2× their estimated duration.
+  setInterval(() => void watchLegTimeouts(), 60_000);
 
   return app;
 }

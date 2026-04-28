@@ -10,7 +10,10 @@ import {
   LegIdParam,
   LegConfirmBody,
   LegBuildConfirmTxBody,
+  LegDisputeBody,
 } from "../schemas/index.js";
+import { broadcast } from "../services/ws-broadcaster.js";
+import { updateReputationOnPhysicalLegComplete } from "../services/reputation.js";
 
 type SwarmParams = z.infer<typeof SwarmIdParam>;
 type LegParams = z.infer<typeof LegIdParam>;
@@ -193,6 +196,58 @@ export async function swarmRoutes(app: FastifyInstance) {
           details: String(err),
         });
       }
+    },
+  );
+
+  // Shipper disputes a leg — courier never showed up / package not received.
+  // Marks leg + swarm failed, reverts package to listed, fires ContractBreached.
+  app.post(
+    "/legs/:legId/dispute",
+    { schema: { params: LegIdParam, body: LegDisputeBody } },
+    async (req, reply) => {
+      const { legId } = req.params as z.infer<typeof LegIdParam>;
+      const { shipperPubkey, reason } = req.body as z.infer<typeof LegDisputeBody>;
+
+      const leg = await prisma.leg.findUnique({
+        where: { id: legId },
+        include: { swarm: { include: { package: true } } },
+      });
+      if (!leg) return reply.code(404).send({ error: "Leg not found" });
+
+      const pkg = leg.swarm.package;
+      if (pkg.shipperPubkey !== shipperPubkey)
+        return reply.code(403).send({ error: "Only the shipper can dispute a leg" });
+
+      if (!["pending", "in_progress"].includes(leg.status))
+        return reply.code(409).send({ error: `Cannot dispute a leg with status '${leg.status}'` });
+
+      await prisma.$transaction([
+        prisma.leg.update({ where: { id: legId }, data: { status: "failed" } }),
+        prisma.swarm.update({ where: { id: leg.swarmId }, data: { status: "failed" } }),
+        prisma.package.update({ where: { id: pkg.id }, data: { status: "listed" } }),
+      ]);
+
+      // Courier failed to deliver — hit their reputation with ContractBreached
+      try {
+        await updateReputationOnPhysicalLegComplete(leg.agentPubkey, false);
+      } catch (err) {
+        app.log.error({ err }, "[dispute] reputation update failed");
+      }
+
+      broadcast({
+        type: "LEG_DISPUTED",
+        legId,
+        swarmId: leg.swarmId,
+        packageId: pkg.id,
+        courierPubkey: leg.agentPubkey,
+        reason,
+      });
+
+      app.log.warn(
+        `[dispute] leg ${legId} disputed by shipper — courier ${leg.agentPubkey.slice(0, 8)} reputation breached`,
+      );
+
+      return { success: true, packageId: pkg.id };
     },
   );
 }

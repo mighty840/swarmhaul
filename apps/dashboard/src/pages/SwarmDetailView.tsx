@@ -322,6 +322,7 @@ export function SwarmDetailView({
   const { publicKey } = useWallet();
   const { confirm, phase, reset } = useConfirmDelivery();
   const [refreshTick, setRefreshTick] = useState(0);
+  const [disputingLegId, setDisputingLegId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -394,6 +395,31 @@ export function SwarmDetailView({
 
   const viewerIsShipper =
     !!publicKey && publicKey.toBase58() === pkg.shipperPubkey;
+
+  async function disputeLeg(legId: string, courierPubkey: string) {
+    if (!publicKey) return;
+    const reason = window.prompt("Reason for dispute (shown to the network):", "Package not received") ?? "Package not received";
+    if (!reason.trim()) return;
+    setDisputingLegId(legId);
+    try {
+      const res = await fetch(`${API_URL}/swarms/legs/${legId}/dispute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shipperPubkey: publicKey.toBase58(), reason }),
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        push(`Dispute failed: ${msg}`, "dispute");
+      } else {
+        push(`Leg disputed — courier ${courierPubkey.slice(0, 8)}… reputation penalised. Package re-listed.`, "dispute");
+        setRefreshTick((t) => t + 1);
+      }
+    } catch (err) {
+      push(`Dispute error: ${String(err)}`, "dispute");
+    } finally {
+      setDisputingLegId(null);
+    }
+  }
   const activeConfirmLegId =
     phase.kind !== "idle" && phase.kind !== "done" && phase.kind !== "error"
       ? (phase as { legId?: string }).legId
@@ -670,6 +696,18 @@ export function SwarmDetailView({
                               {phase.message.slice(0, 120)}
                             </span>
                           )}
+                        </div>
+                      )}
+                    {viewerIsShipper &&
+                      ["pending", "in_progress"].includes(leg.status) && (
+                        <div className="mt-2 flex flex-col items-end gap-1">
+                          <button
+                            className="text-[9px] tracking-[0.14em] uppercase font-semibold px-3 py-1.5 border border-[var(--color-blood)] text-[var(--color-blood)] hover:bg-[var(--color-blood)] hover:text-[var(--color-bone)] transition-colors disabled:opacity-40"
+                            disabled={disputingLegId === leg.id}
+                            onClick={() => disputeLeg(leg.id, leg.agentPubkey)}
+                          >
+                            {disputingLegId === leg.id ? "DISPUTING…" : "✕ NOT RECEIVED"}
+                          </button>
                         </div>
                       )}
                   </div>

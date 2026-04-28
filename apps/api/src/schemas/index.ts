@@ -172,6 +172,12 @@ export const LegBuildConfirmTxBody = z.object({
 });
 export type LegBuildConfirmTxBodyType = z.infer<typeof LegBuildConfirmTxBody>;
 
+export const LegDisputeBody = z.object({
+  shipperPubkey: SolanaPubkey,
+  reason: z.string().min(1).max(500).default("Not received"),
+});
+export type LegDisputeBodyType = z.infer<typeof LegDisputeBody>;
+
 // ─── Reputation routes ─────────────────────────────────────────────
 
 export const ReputationPubkeyParam = z.object({
