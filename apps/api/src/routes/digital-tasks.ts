@@ -407,13 +407,20 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: `Leg already ${leg.status}` });
       }
 
+      // A verify leg fails if it starts with "FAILED:".
+      // A work leg fails if the result is empty or under 20 chars (placeholder/no-op).
+      const isVerify = leg.legType === "verify";
+      const success = isVerify
+        ? !result.trimStart().toUpperCase().startsWith("FAILED:")
+        : result.trim().length >= 20;
+
       const completed = await prisma.digitalLeg.update({
         where: { id: legId },
         data: { status: "completed", result, completedAt: new Date() },
       });
 
       broadcast({ type: "DIGITAL_LEG_COMPLETED", taskId, leg: completed as never });
-      await updateReputationOnDigitalLegComplete(agentPubkey);
+      await updateReputationOnDigitalLegComplete(agentPubkey, success);
 
       // Fetch task + all legs for payout logic
       const task = await prisma.digitalTask.findUnique({

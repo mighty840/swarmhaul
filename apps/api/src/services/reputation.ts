@@ -1,19 +1,36 @@
 import { prisma } from "../db/client.js";
 
-export async function updateReputationOnDigitalLegComplete(agentPubkey: string): Promise<void> {
-  await prisma.agentReputation.upsert({
+const PRIOR = 10;
+
+function bayesianScore(completed: number, accepted: number): number {
+  return Math.min(100, Math.round(((completed + PRIOR / 2) / (accepted + PRIOR)) * 100));
+}
+
+export async function updateReputationOnDigitalLegComplete(
+  agentPubkey: string,
+  success: boolean,
+): Promise<void> {
+  const rep = await prisma.agentReputation.upsert({
     where: { agentPubkey },
     create: {
       agentPubkey,
-      legsCompleted: 1,
       legsAccepted: 1,
-      reliabilityScore: 55,
+      legsCompleted: success ? 1 : 0,
+      reliabilityScore: success ? bayesianScore(1, 1) : bayesianScore(0, 1),
     },
     update: {
-      legsCompleted: { increment: 1 },
       legsAccepted: { increment: 1 },
-      // Each digital leg completion nudges reliability up by ~0.5 points (capped at 100)
-      reliabilityScore: { increment: 0.5 },
+      ...(success ? { legsCompleted: { increment: 1 } } : {}),
     },
+  });
+
+  const score = bayesianScore(
+    success ? rep.legsCompleted + 1 : rep.legsCompleted,
+    rep.legsAccepted + 1,
+  );
+
+  await prisma.agentReputation.update({
+    where: { agentPubkey },
+    data: { reliabilityScore: score },
   });
 }
