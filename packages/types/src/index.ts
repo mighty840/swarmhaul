@@ -124,7 +124,15 @@ export interface NegotiationMessage {
 // === Digital Tasks ===
 
 export type DigitalTaskStatus = "listed" | "in_progress" | "completed" | "failed";
-export type DigitalLegStatus = "open" | "assigned" | "in_progress" | "completed" | "failed";
+export type DigitalLegStatus = "open" | "bidding" | "assigned" | "in_progress" | "completed" | "failed";
+
+export interface DigitalLegBid {
+  id: string;
+  legId: string;
+  agentPubkey: string;
+  bidSol: number;
+  createdAt: string;
+}
 
 export interface DigitalLeg {
   id: string;
@@ -136,6 +144,10 @@ export interface DigitalLeg {
   agentPubkey?: string;
   bidSol?: number;
   status: DigitalLegStatus;
+  /** ISO timestamp — window closes at this time; set when first bid arrives */
+  biddingClosesAt?: string;
+  /** Competing bids collected during the bid window */
+  bids?: DigitalLegBid[];
   result?: string;
   startedAt?: Date;
   completedAt?: Date;
@@ -169,6 +181,7 @@ export type WSEvent =
   | { type: "VEHICLE_LOCATION"; pubkey: string; location: LatLng }
   | { type: "REPUTATION_UPDATED"; reputation: AgentReputation }
   | { type: "DIGITAL_TASK_LISTED"; task: DigitalTask }
+  | { type: "DIGITAL_LEG_BID_RECEIVED"; taskId: string; legId: string; bid: DigitalLegBid; bidCount: number; biddingClosesAt: string }
   | { type: "DIGITAL_LEG_ASSIGNED"; taskId: string; leg: DigitalLeg }
   | { type: "DIGITAL_LEG_COMPLETED"; taskId: string; leg: DigitalLeg }
   | { type: "DIGITAL_TASK_COMPLETED"; task: DigitalTask }

@@ -146,10 +146,15 @@ const ConfirmBody = z.object({
 });
 
 export async function digitalTaskRoutes(app: FastifyInstance) {
+  const legsInclude = {
+    orderBy: { sequence: "asc" as const },
+    include: { bids: { orderBy: { createdAt: "asc" as const } } },
+  };
+
   app.get("/", async () => {
     return prisma.digitalTask.findMany({
       orderBy: { listedAt: "desc" },
-      include: { legs: { orderBy: { sequence: "asc" } } },
+      include: { legs: legsInclude },
       take: 100,
     });
   });
@@ -161,7 +166,7 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       const { id } = req.params as z.infer<typeof IdParam>;
       const task = await prisma.digitalTask.findUnique({
         where: { id },
-        include: { legs: { orderBy: { sequence: "asc" } } },
+        include: { legs: legsInclude },
       });
       if (!task) return reply.code(404).send({ error: "Task not found" });
       return task;
@@ -287,6 +292,8 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
   );
 
   // ─── Bid on a leg ─────────────────────────────────────────────────
+  const BID_WINDOW_MS = 5_000;
+
   app.post(
     "/:id/legs/:legId/bid",
     { schema: { params: LegParam, body: BidBody } },
@@ -294,9 +301,20 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
       const { id: taskId, legId } = req.params as z.infer<typeof LegParam>;
       const { agentPubkey, bidSol } = req.body as z.infer<typeof BidBody>;
 
-      const leg = await prisma.digitalLeg.findUnique({ where: { id: legId } });
+      const leg = await prisma.digitalLeg.findUnique({
+        where: { id: legId },
+        include: { bids: true },
+      });
       if (!leg) return reply.code(404).send({ error: "Leg not found" });
-      if (leg.status !== "open") return reply.code(409).send({ error: "Leg already assigned" });
+
+      const now = new Date();
+
+      if (!["open", "bidding"].includes(leg.status)) {
+        return reply.code(409).send({ error: "Leg already assigned" });
+      }
+      if (leg.status === "bidding" && leg.biddingClosesAt && leg.biddingClosesAt <= now) {
+        return reply.code(409).send({ error: "Bidding window closed" });
+      }
 
       // Block agent from verifying their own work leg
       if (leg.legType === "verify" && leg.sequence > 0) {
@@ -308,7 +326,12 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         }
       }
 
-      // Enforce one leg per agent per task
+      // Prevent double-bidding on the same leg
+      if (leg.bids.some((b) => b.agentPubkey === agentPubkey)) {
+        return reply.code(409).send({ error: "You already bid on this leg" });
+      }
+
+      // One active leg per agent per task
       const alreadyHolding = await prisma.digitalLeg.findFirst({
         where: { taskId: leg.taskId, agentPubkey, status: { in: ["assigned", "in_progress"] } },
       });
@@ -316,89 +339,36 @@ export async function digitalTaskRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: "You already hold a leg in this task" });
       }
 
-      // Atomic conditional update — only succeeds if the row is still "open",
-      // preventing two concurrent bids from both winning the same leg.
-      const { count } = await prisma.digitalLeg.updateMany({
-        where: { id: legId, status: "open" },
-        data: { agentPubkey, bidSol, status: "assigned" },
-      });
-      if (count === 0) return reply.code(409).send({ error: "Leg already assigned" });
+      // Record bid and open window (or join existing window)
+      const biddingClosesAt =
+        leg.status === "open"
+          ? new Date(now.getTime() + BID_WINDOW_MS)
+          : leg.biddingClosesAt!;
 
-      // updateMany succeeded (count > 0), so the row must exist.
-      const updated = await prisma.digitalLeg.findUniqueOrThrow({ where: { id: legId } });
+      const [bid] = await prisma.$transaction([
+        prisma.digitalLegBid.create({ data: { legId, agentPubkey, bidSol } }),
+        ...(leg.status === "open"
+          ? [prisma.digitalLeg.update({ where: { id: legId }, data: { status: "bidding", biddingClosesAt } })]
+          : []),
+      ]);
 
-      // Flip task DB status on first assignment
+      // Flip task status to in_progress on the first ever bid
       await prisma.digitalTask.update({
         where: { id: leg.taskId, status: "listed" },
         data: { status: "in_progress" },
       }).catch(() => {});
 
-      broadcast({ type: "DIGITAL_LEG_ASSIGNED", taskId: leg.taskId, leg: updated as never });
-
-      // When ALL legs are now assigned, form the on-chain swarm in one tx
-      const task = await prisma.digitalTask.findUnique({
-        where: { id: taskId },
-        include: { legs: { orderBy: { sequence: "asc" } } },
+      const bidCount = leg.bids.length + 1;
+      broadcast({
+        type: "DIGITAL_LEG_BID_RECEIVED",
+        taskId,
+        legId,
+        bid: bid as never,
+        bidCount,
+        biddingClosesAt: biddingClosesAt.toISOString(),
       });
 
-      if (task?.onChainTask) {
-        const allAssigned = task.legs.every(
-          (l) => l.status === "assigned" || l.status === "in_progress" || l.status === "completed",
-        );
-
-        if (allAssigned) {
-          try {
-            const { sdk, coordinator } = getSolana();
-            const totalBudgetLamports = BigInt(Math.floor(task.maxBudgetSol * LAMPORTS_PER_SOL));
-            const perLegLamports = totalBudgetLamports / BigInt(task.legs.length);
-
-            const agents = task.legs.map((l) => ({
-              agent: new PublicKey(l.agentPubkey!),
-              paymentLamports: perLegLamports,
-            }));
-
-            const { taskSwarm, signature: formSig } = await withRetry(() =>
-              coordinatorFormAndAssignTaskSwarm(
-                sdk,
-                coordinator,
-                new PublicKey(task.onChainTask!),
-                perLegLamports * BigInt(task.legs.length),
-                agents,
-              ),
-            );
-
-            // Derive per-leg PDAs and persist on-chain addresses
-            const legUpdates = task.legs.map((l, i) => {
-              const [legPda] = taskLegPda(taskSwarm, i);
-              return prisma.digitalLeg.update({
-                where: { id: l.id },
-                data: {
-                  onChainLeg: legPda.toBase58(),
-                  paymentLamports: perLegLamports,
-                },
-              });
-            });
-
-            await Promise.all([
-              prisma.digitalTask.update({
-                where: { id: taskId },
-                data: { onChainSwarm: taskSwarm.toBase58() },
-              }),
-              ...legUpdates,
-            ]);
-
-            app.log.info(`[digital] task swarm formed on-chain — ${taskSwarm.toBase58()} tx ${formSig}`);
-          } catch (err) {
-            app.log.error({ err }, "[digital] form_task_swarm failed");
-          }
-        }
-      }
-
-      await broadcastMcpNotification(
-        `Leg ${updated.sequence + 1} of task "${taskId}" assigned to ${agentPubkey.slice(0, 8)}…`,
-      );
-
-      return updated;
+      return reply.code(202).send({ status: "bidding", biddingClosesAt, bidCount });
     },
   );
 

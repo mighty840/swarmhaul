@@ -28,6 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed:   "var(--color-phosphor)",
   failed:      "var(--color-blood)",
   open:        "var(--color-steel)",
+  bidding:     "var(--color-magenta)",
   assigned:    "var(--color-cyan)",
 };
 
@@ -131,6 +132,7 @@ function LegNode({
   const [expanded, setExpanded] = useState(false);
   const statusColor = STATUS_COLOR[leg.status] ?? "var(--color-ash)";
   const isActive = leg.status === "in_progress" || leg.status === "assigned";
+  const isBidding = leg.status === "bidding";
   const isDone = leg.status === "completed";
   const isVerify = leg.legType === "verify";
   const verifyColor = "var(--color-amber)";
@@ -174,6 +176,11 @@ function LegNode({
             {isActive && (
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor, boxShadow: `0 0 4px ${statusColor}` }} />
             )}
+            {isBidding && (
+              <span className="text-[8px] font-bold tracking-[0.1em] shrink-0 animate-pulse" style={{ color: "var(--color-magenta)" }}>
+                {leg.bids?.length ?? 0} BID{(leg.bids?.length ?? 0) !== 1 ? "S" : ""}
+              </span>
+            )}
           </div>
 
           {/* Instruction preview */}
@@ -186,8 +193,22 @@ function LegNode({
                 {shortenPubkey(leg.agentPubkey)}
               </p>
             )}
-            {leg.bidSol && (
+            {leg.bidSol && !isBidding && (
               <p className="text-[9px] text-[var(--color-ash)]">{leg.bidSol} SOL</p>
+            )}
+            {isBidding && leg.bids && leg.bids.length > 0 && (
+              <div className="mt-1 space-y-0.5">
+                {leg.bids.map((b, bi) => (
+                  <div key={b.id} className="flex items-center gap-1.5">
+                    <span className="text-[8px] font-mono" style={{ color: bi === 0 ? "var(--color-phosphor)" : "var(--color-steel)" }}>
+                      {shortenPubkey(b.agentPubkey)}
+                    </span>
+                    <span className="text-[8px] font-mono tabular-nums" style={{ color: "var(--color-magenta)" }}>
+                      {b.bidSol} SOL
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </button>

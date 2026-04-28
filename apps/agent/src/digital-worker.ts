@@ -146,10 +146,10 @@ export async function runDigitalWorkerPass(
     // Only bid if we hold no legs in this task already
     if (myLegs.length > 0) continue;
 
-    // Find the next eligible open leg — sequential: only bid if previous leg is done.
+    // Find the next eligible open/bidding leg — sequential: only bid if previous leg is done.
     // Skip verify legs whose preceding work leg was completed by this agent.
     const nextLeg = task.legs
-      .filter((l) => l.status === "open" && !bidAttempted.has(l.id))
+      .filter((l) => (l.status === "open" || l.status === "bidding") && !bidAttempted.has(l.id))
       .sort((a, b) => a.sequence - b.sequence)
       .find((l) => {
         if (l.sequence === 0) return true;
@@ -174,12 +174,13 @@ export async function runDigitalWorkerPass(
     );
 
     if (bidRes.ok) {
-      console.log(`[Digital] Won leg ${nextLeg.sequence + 1}/${task.legs.length} of "${task.title}"`);
+      console.log(`[Digital] Bid placed on leg ${nextLeg.sequence + 1}/${task.legs.length} of "${task.title}" — awaiting window close`);
     } else {
       const msg = await bidRes.text();
-      if (!msg.includes("already assigned") && !msg.includes("already hold")) {
+      const noRetry = ["already assigned", "already hold", "already bid", "Bidding window closed", "Cannot verify your own"];
+      if (!noRetry.some((phrase) => msg.includes(phrase))) {
         console.error(`[Digital] Bid rejected (${bidRes.status}):`, msg.slice(0, 120));
-        // Allow retry on next poll for non-conflict errors
+        // Allow retry on next poll for transient errors
         bidAttempted.delete(nextLeg.id);
       }
     }

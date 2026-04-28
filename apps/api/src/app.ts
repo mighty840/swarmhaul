@@ -22,6 +22,7 @@ import { mcpRoutes } from "./routes/mcp.js";
 import { devRoutes } from "./routes/dev.js";
 import { didRoutes } from "./routes/did.js";
 import { digitalTaskRoutes } from "./routes/digital-tasks.js";
+import { closeBidWindows } from "./services/bid-window-closer.js";
 import { rewardClaimRoutes } from "./routes/reward-claims.js";
 import { addClient } from "./services/ws-broadcaster.js";
 import { authHook } from "./services/auth.js";
@@ -163,6 +164,9 @@ export async function buildApp(opts?: { logger?: boolean }) {
   // Run once on startup, then every 5 minutes.
   void reconcileDigitalTasks();
   setInterval(() => void reconcileDigitalTasks(), 5 * 60 * 1000);
+
+  // Close expired bid windows every 2 seconds and assign winners.
+  setInterval(() => void closeBidWindows(), 2_000);
 
   return app;
 }

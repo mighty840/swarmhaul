@@ -136,21 +136,34 @@ model DigitalTask {
 }
 
 model DigitalLeg {
-  id              String      @id @default(uuid())
+  id              String           @id @default(uuid())
   taskId          String
-  task            DigitalTask @relation(fields: [taskId], references: [id])
+  task            DigitalTask      @relation(fields: [taskId], references: [id])
   sequence        Int
   /// "work" (default) | "verify" — verify legs check the preceding work leg's output
-  legType         String      @default("work")
+  legType         String           @default("work")
   instruction     String
   agentPubkey     String?
   bidSol          Float?
   paymentLamports BigInt?
-  status          String      @default("open")
+  /// open → bidding → assigned → in_progress → completed | failed
+  status          String           @default("open")
+  /// Set when first bid arrives; window stays open for BID_WINDOW_MS
+  biddingClosesAt DateTime?
   result          String?
   onChainLeg      String?
   startedAt       DateTime?
   completedAt     DateTime?
+  bids            DigitalLegBid[]
+}
+
+model DigitalLegBid {
+  id          String     @id @default(uuid())
+  legId       String
+  leg         DigitalLeg @relation(fields: [legId], references: [id])
+  agentPubkey String
+  bidSol      Float
+  createdAt   DateTime   @default(now())
 }
 
 model DigitalAgentProfile {
