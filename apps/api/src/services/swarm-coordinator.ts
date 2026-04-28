@@ -5,6 +5,7 @@ import { broadcast } from "./ws-broadcaster.js";
 import { findOptimalRelayChain } from "./route-optimizer.js";
 import { getSolana, explorerTxUrl } from "./solana.js";
 import { allocateReputationWeightedPayments } from "./reputation-engine.js";
+import { updateReputationOnPhysicalLegComplete } from "./reputation.js";
 
 const SWARM_FORMATION_TTL_MS = 15 * 60 * 1000;
 const MIN_BIDS_FOR_EVALUATION = 1;
@@ -323,41 +324,29 @@ export async function confirmLegCompletion(
     });
   }
 
-  // Mirror on-chain reputation to Postgres — confirm_leg bumped legsCompleted
+  // Mirror on-chain reputation to Postgres using the canonical reputation engine.
   try {
-    const rep = await prisma.agentReputation.upsert({
-      where: { agentPubkey: agentPubkey },
-      create: {
-        agentPubkey,
-        legsAccepted: 1,
-        legsCompleted: 1,
-        reliabilityScore: 100,
-      },
-      update: {
-        legsCompleted: { increment: 1 },
-      },
-    });
-    // Recompute score: floor(completed / accepted * 100)
-    const score =
-      rep.legsAccepted > 0
-        ? Math.min(100, Math.round((rep.legsCompleted / rep.legsAccepted) * 100))
-        : 0;
-    await prisma.agentReputation.update({
+    await prisma.agentReputation.upsert({
       where: { agentPubkey },
-      data: { reliabilityScore: score },
+      create: { agentPubkey, legsAccepted: 1, legsCompleted: 1, reliabilityScore: 30 },
+      update: { legsCompleted: { increment: 1 } },
     });
+    await updateReputationOnPhysicalLegComplete(agentPubkey, true);
 
-    broadcast({
-      type: "REPUTATION_UPDATED",
-      reputation: {
-        agentPubkey,
-        legsCompleted: rep.legsCompleted,
-        legsAccepted: rep.legsAccepted,
-        avgDeliveryTimeSec: 0,
-        reliabilityScore: score,
-        registeredAt: rep.updatedAt,
-      },
-    });
+    const rep = await prisma.agentReputation.findUnique({ where: { agentPubkey } });
+    if (rep) {
+      broadcast({
+        type: "REPUTATION_UPDATED",
+        reputation: {
+          agentPubkey,
+          legsCompleted: rep.legsCompleted,
+          legsAccepted: rep.legsAccepted,
+          avgDeliveryTimeSec: 0,
+          reliabilityScore: rep.reliabilityScore,
+          registeredAt: rep.updatedAt,
+        },
+      });
+    }
   } catch (err) {
     console.error("[coordinator] reputation sync failed", err);
   }
