@@ -131,7 +131,7 @@
           <li><strong>Intermediate leg</strong> (<code>leg_index &lt; total_legs - 1</code>): the next-hop courier signs <code>confirm_leg</code> — their signature is the handoff attestation.</li>
           <li>Errors: <code>LegOutOfOrder</code>, <code>MissingNextLeg</code>, <code>UnexpectedNextLeg</code>, <code>UnauthorizedRecipient</code>.</li>
         </ul>
-        <p>On-chain, <code>confirm_leg</code> transfers <code>leg.agreedPaymentSol</code> directly from the vault to the courier's wallet via a PDA-signed system transfer. Reputation <code>legs_completed</code> bumps, <code>reliability_score</code> is recomputed to <code>floor(completed / accepted × 100)</code>.</p>
+        <p>On-chain, <code>confirm_leg</code> transfers <code>leg.agreedPaymentSol</code> directly from the vault to the courier's wallet via a PDA-signed system transfer. Reputation <code>legs_completed</code> bumps. The off-chain mirror then applies the Bayesian ramp: <code>new_score = old + (1 − old) × gain_factor × 0.05</code> (diminishing returns toward 1.0). The on-chain <code>reliability_score</code> stores the result scaled to 0–100.</p>
 
         <h2>State machine summary</h2>
         <div class="terminal">

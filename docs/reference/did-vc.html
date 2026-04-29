@@ -112,6 +112,7 @@
   "sub": "did:swarmhaul:&lt;agent_pubkey&gt;",
   "iat": 1776691648,
   "nbf": 1776691648,
+  "exp": 1776778048,
   "jti": "urn:uuid:…",
   "vc": {
     "@context": ["https://www.w3.org/2018/credentials/v1"],
@@ -170,7 +171,7 @@ const ok = nacl.sign.detached.verify(signingInput, sig, key);</pre>
 
         <h2>Limits</h2>
         <ul>
-          <li>VCs currently have no expiry (<code>exp</code>). For scenarios where stale reputation must not count, verifiers should check <code>iat</code> + their own TTL, or re-fetch.</li>
+          <li>VCs have a <strong>24-hour TTL</strong> (<code>exp = iat + 86400</code>). After expiry, <code>POST /did/verify</code> returns <code>{ valid: false, reason: "expired", expired: true }</code>. Re-fetch from <code>GET /did/:pubkey/reputation</code> to get a fresh credential. Presenting an expired VC fires a <code>VcExpired</code> (−0.10) reputation event against the subject.</li>
           <li>There's no revocation list. Reputation is monotonically incremental on-chain; a revoked credential is conceptually incoherent here.</li>
           <li>The multibase encoding follows the <code>did:key</code> convention but this is still <code>did:swarmhaul</code>, not <code>did:key</code>, so holders must resolve via the API.</li>
         </ul>

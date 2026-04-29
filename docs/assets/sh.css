@@ -436,7 +436,9 @@ footer {
   background: rgba(0,229,176,0.08); color: var(--accent);
   padding: 2px 7px; border-radius: 3px;
   border: 1px solid rgba(0,229,176,0.18);
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .prose hr { border: none; border-top: 1px solid var(--line); margin: 44px 0; }
 .prose blockquote {

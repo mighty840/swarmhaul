@@ -133,23 +133,32 @@ Severity = Minor | Moderate | Major | Critical</pre>
         <p>The <code>events</code> log is append-only and immutable once written. Scores are derived deterministically from the log — the log is the source of truth, not the score.</p>
 
         <h2>3. Event taxonomy &amp; impact</h2>
+        <p>7 events are live in the current build. 4 are planned for a future milestone.</p>
         <table>
-          <thead><tr><th>Event</th><th>Outcome</th><th>Default Δ</th><th>Notes</th></tr></thead>
+          <thead><tr><th>Event</th><th>Outcome</th><th>Default Δ</th><th>Live?</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><code>DidPresented</code></td><td>success</td><td><code>+0.005</code></td><td>Low weight — just showing up</td></tr>
-            <tr><td><code>VcValidated</code></td><td>success</td><td><code>+0.02</code></td><td>Valid credential from trusted issuer</td></tr>
-            <tr><td><code>SignatureVerified</code></td><td>success</td><td><code>+0.01</code></td><td>Per signature</td></tr>
-            <tr><td><code>ApiCallSuccess</code></td><td>success</td><td><code>+0.002</code></td><td>High-frequency low-weight</td></tr>
-            <tr><td><code>ContractCompleted</code></td><td>success</td><td><code>+0.05</code></td><td>Significant: finishing a full commitment</td></tr>
-            <tr><td><code>IndirectReferral</code></td><td>success</td><td><code>+0.005</code></td><td>From a trusted actor</td></tr>
-            <tr><td><code>SignatureFailed</code></td><td>failure</td><td><code>−0.15</code></td><td>Invalid signature — trust-destroying</td></tr>
-            <tr><td><code>VcExpired</code></td><td>failure</td><td><code>−0.10</code></td><td>Presenting expired credential</td></tr>
-            <tr><td><code>VcRevoked</code></td><td>failure</td><td><code>−0.40</code></td><td>Presenting revoked credential</td></tr>
-            <tr><td><code>ApiCall500</code></td><td>failure</td><td><code>−0.02</code></td><td>Per failure; repeated failures compound</td></tr>
-            <tr><td><code>ContractBreached</code></td><td>failure</td><td><code>−0.80</code></td><td>Near-catastrophic; score drops to near-zero</td></tr>
+            <tr><td><code>DidPresented</code></td><td>success</td><td><code>+0.005</code></td><td>✅</td><td>Fires once on first <code>register_agent</code> call only</td></tr>
+            <tr><td><code>VcValidated</code></td><td>success</td><td><code>+0.02</code></td><td>✅</td><td>Fires on <code>POST /did/verify</code>; max once per 24h per subject</td></tr>
+            <tr><td><code>SignatureVerified</code></td><td>success</td><td><code>+0.01</code></td><td>✅</td><td>On-chain tx confirmed after physical leg confirm</td></tr>
+            <tr><td><code>ApiCallSuccess</code></td><td>success</td><td><code>+0.002</code></td><td>⏳</td><td>Planned: authenticated API calls</td></tr>
+            <tr><td><code>ContractCompleted</code></td><td>success</td><td><code>+0.05</code></td><td>✅</td><td>Digital and physical leg confirmed</td></tr>
+            <tr><td><code>IndirectReferral</code></td><td>success</td><td><code>+0.005</code></td><td>⏳</td><td>Planned: vouching endpoint</td></tr>
+            <tr><td><code>SignatureFailed</code></td><td>failure</td><td><code>−0.15</code></td><td>✅</td><td>On-chain tx not found after physical leg confirm</td></tr>
+            <tr><td><code>VcExpired</code></td><td>failure</td><td><code>−0.10</code></td><td>✅</td><td>Expired VC presented to <code>POST /did/verify</code></td></tr>
+            <tr><td><code>VcRevoked</code></td><td>failure</td><td><code>−0.40</code></td><td>⏳</td><td>Planned: requires revocation registry</td></tr>
+            <tr><td><code>ApiCall500</code></td><td>failure</td><td><code>−0.02</code></td><td>⏳</td><td>Planned: authenticated API calls</td></tr>
+            <tr><td><code>ContractBreached</code></td><td>failure</td><td><code>−0.80</code></td><td>✅</td><td>Shipper dispute, auto-timeout, or failed digital leg</td></tr>
           </tbody>
         </table>
         <p>The exact deltas are configurable per deployment. The <strong>ratios</strong> are the invariant: a single <code>ContractBreached</code> undoes roughly 16 <code>ContractCompleted</code> events.</p>
+
+        <h3>3.1 Abuse resistance</h3>
+        <p>Two events that could otherwise be spammed to inflate reputation have hard rate limits:</p>
+        <ul>
+          <li><strong><code>DidPresented</code></strong> fires at most <strong>once per agent, ever</strong> — only on first registration. Re-calling <code>register_agent</code> is a no-op for reputation.</li>
+          <li><strong><code>VcValidated</code></strong> fires at most <strong>once per subject per 24 hours</strong> — matching the VC's own 24h TTL. A self-verify loop earns the event at the same rate as a legitimately issued fresh credential: once per day.</li>
+        </ul>
+        <p>These limits make the DID/VC event tier worth roughly <code>+0.02</code> per day at most, while a single <code>ContractCompleted</code> (<code>+0.05</code>) from actual work outpaces two days of identity signals. Work is the dominant reputation path.</p>
 
         <h2>4. Ramp functions</h2>
 
