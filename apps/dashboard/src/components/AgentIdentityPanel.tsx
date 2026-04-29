@@ -32,6 +32,7 @@ interface VcPayload {
   iss: string;
   sub: string;
   iat: number;
+  exp?: number;
   vc: {
     type: string[];
     issuanceDate: string;
@@ -49,6 +50,7 @@ interface VcPayload {
 interface VerifyResponse {
   valid: boolean;
   reason?: string;
+  expired?: boolean;
 }
 
 function decodeJwtPayload(jwt: string): VcPayload | null {
@@ -282,7 +284,15 @@ export function AgentIdentityPanel({ pubkey, onClose }: AgentIdentityPanelProps)
                   {shorten(vcPayload.iss.replace("did:swarmhaul:", ""))}
                 </span>
                 {" "}at{" "}
-                {new Date(vcPayload.iat * 1000).toLocaleString()}. Type:{" "}
+                {new Date(vcPayload.iat * 1000).toLocaleString()}.
+                {vcPayload.exp && (
+                  <> Expires{" "}
+                    <span className="text-[var(--color-bone)]">
+                      {new Date(vcPayload.exp * 1000).toLocaleString()}
+                    </span>.
+                  </>
+                )}{" "}
+                Type:{" "}
                 <code className="text-[var(--color-bone)]">
                   {vcPayload.vc.type.join(" · ")}
                 </code>
@@ -337,7 +347,9 @@ export function AgentIdentityPanel({ pubkey, onClose }: AgentIdentityPanelProps)
                 >
                   {verify.valid
                     ? "✓ signature valid — issuer pubkey matches coordinator DID"
-                    : `✗ verification failed: ${verify.reason ?? "unknown"}`}
+                    : verify.expired
+                      ? "✗ credential expired — fetch a fresh VC from the reputation endpoint"
+                      : `✗ verification failed: ${verify.reason ?? "unknown"}`}
                 </div>
               )}
             </section>

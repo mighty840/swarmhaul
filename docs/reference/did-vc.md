@@ -45,6 +45,7 @@ its Ed25519 key. Payload (once base64url-decoded):
   "sub": "did:swarmhaul:<agent_pubkey>",
   "iat": 1776691648,
   "nbf": 1776691648,
+  "exp": 1776778048,
   "jti": "urn:uuid:…",
   "vc": {
     "@context": ["https://www.w3.org/2018/credentials/v1"],
@@ -128,9 +129,11 @@ struct in `packages/solana/programs/swarmhaul/src/state/reputation.rs`.
 
 ## Limits
 
-- VCs currently have no expiry (`exp`). For scenarios where
-  stale reputation must not count, verifiers should check `iat` +
-  their own TTL, or re-fetch.
+- VCs have a **24-hour TTL** (`exp = iat + 86400`). After expiry,
+  `POST /did/verify` returns `{ valid: false, reason: "expired", expired: true }`.
+  Re-fetch from `GET /did/:pubkey/reputation` to get a fresh credential.
+  Presenting an expired VC fires a `VcExpired` (−0.10) reputation event
+  against the subject.
 - There's no revocation list. Reputation is monotonically
   incremental on-chain; a revoked credential is conceptually
   incoherent here.

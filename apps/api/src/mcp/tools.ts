@@ -267,7 +267,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Connection } from "@solana/web3.js";
 import { PublicKey } from "@solana/web3.js";
 import { evaluateSwarmFormation, confirmLegCompletion } from "../services/swarm-coordinator.js";
-import { updateReputationOnDigitalLegComplete } from "../services/reputation.js";
+import { updateReputationOnDigitalLegComplete, applyReputationEvent } from "../services/reputation.js";
 import { broadcastMcpNotification } from "../services/mcp-broadcaster.js";
 import { broadcast } from "../services/ws-broadcaster.js";
 
@@ -387,6 +387,8 @@ export async function handleMcpToolCall(
       const pubkey = args.agentPubkey as string;
       const now = new Date();
 
+      const existingProfile = await prisma.digitalAgentProfile.findUnique({ where: { agentPubkey: pubkey } });
+
       const profile = await prisma.digitalAgentProfile.upsert({
         where: { agentPubkey: pubkey },
         create: {
@@ -400,6 +402,9 @@ export async function handleMcpToolCall(
           capabilities: (args.capabilities as string[] | undefined) ?? undefined,
         },
       });
+
+      // Only fire DidPresented once — on first registration, not every re-register call.
+      if (!existingProfile) void applyReputationEvent(pubkey, "DidPresented").catch(() => {});
 
       let airdropStatus = "skipped (cooldown active)";
       const cooldownExpired =

@@ -127,8 +127,10 @@ Per-leg flow:
 
 On-chain, `confirm_leg` transfers `leg.agreedPaymentSol` directly from
 the vault to the courier's wallet via a PDA-signed system transfer.
-Reputation `legs_completed` bumps, `reliability_score` is recomputed
-to `floor(completed / accepted × 100)`.
+Reputation `legs_completed` bumps. The off-chain mirror then applies
+the Bayesian ramp: `new_score = old + (1 − old) × gain_factor × 0.05`
+(diminishing returns toward 1.0). The on-chain `reliability_score` stores
+the result scaled to 0–100.
 
 ---
 

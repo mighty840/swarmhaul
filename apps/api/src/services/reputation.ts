@@ -3,7 +3,7 @@ import { applyEvent, DEFAULT_CONFIG, type EventKind } from "./reputation-engine.
 
 const BASE_SCORE = DEFAULT_CONFIG.baseScore; // 0.3
 
-async function applyReputationEvent(agentPubkey: string, kind: EventKind): Promise<void> {
+export async function applyReputationEvent(agentPubkey: string, kind: EventKind): Promise<void> {
   const existing = await prisma.agentReputation.findUnique({ where: { agentPubkey } });
 
   const currentScore = existing ? existing.reliabilityScore / 100 : BASE_SCORE;

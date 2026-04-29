@@ -354,8 +354,9 @@ footer {
 /* ── CONTENT AREA ─────────────────────────────────────────────────────────── */
 .doc-content {
   padding: 52px 60px 80px;
-  max-width: 780px;
+  max-width: 860px;
   min-width: 0;
+  overflow-x: clip; /* clip inline overflow without creating a scroll container */
 }
 
 /* breadcrumb */
@@ -390,18 +391,19 @@ footer {
   font-family: var(--head); font-size: clamp(15px, 2vw, 20px);
   font-weight: 600; letter-spacing: 0.07em; color: var(--text);
   margin: 52px 0 16px; padding-top: 8px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line); overflow-wrap: anywhere;
 }
 .prose h3 {
   font-family: var(--head); font-size: clamp(13px, 1.5vw, 15px); font-weight: 600;
-  letter-spacing: 0.1em; color: var(--text); margin: 32px 0 12px;
+  letter-spacing: 0.1em; color: var(--text); margin: 32px 0 12px; overflow-wrap: anywhere;
 }
 .prose h4 {
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
-  color: var(--accent); margin: 24px 0 10px; opacity: 0.85;
+  color: var(--accent); margin: 24px 0 10px; opacity: 0.85; overflow-wrap: anywhere;
 }
 .prose p {
   font-size: 16px; line-height: 1.9; color: var(--prose); margin-bottom: 18px;
+  overflow-wrap: anywhere; /* allow breaking long inline code tokens mid-token */
 }
 .prose strong { color: var(--text); font-weight: 600; }
 .prose em { color: var(--prose); font-style: italic; }
@@ -415,6 +417,7 @@ footer {
 .prose ul li, .prose ol li {
   font-size: 16px; line-height: 1.8; color: var(--prose);
   padding: 4px 0 4px 26px; position: relative;
+  overflow-wrap: anywhere;
 }
 .prose ul li::before {
   content: '→'; position: absolute; left: 0;
@@ -457,7 +460,7 @@ footer {
 }
 .prose td {
   padding: 11px 14px; color: var(--prose); border-bottom: 1px solid var(--line);
-  vertical-align: top; line-height: 1.6;
+  vertical-align: top; line-height: 1.6; overflow-wrap: anywhere;
 }
 .prose td code { font-size: 12px; }
 .prose tr:last-child td { border-bottom: none; }

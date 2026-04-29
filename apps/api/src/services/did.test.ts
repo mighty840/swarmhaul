@@ -107,4 +107,57 @@ describe("VC-JWT issuance + verification", () => {
     expect(verifyReputationVC("not-a-jwt", newKeypair().pubkey).valid).toBe(false);
     expect(verifyReputationVC("one.two", newKeypair().pubkey).valid).toBe(false);
   });
+
+  it("issued VC includes an exp claim ~24h from issuance", () => {
+    const issuer = newKeypair();
+    const subject = newKeypair();
+    const now = new Date("2025-01-01T00:00:00Z");
+    const jwt = issueReputationVC({
+      issuerPubkey: issuer.pubkey,
+      issuerSecretKey: issuer.secretKey,
+      subjectPubkey: subject.pubkey,
+      claims: { legsAccepted: 1, legsCompleted: 1, reliabilityScore: 50 },
+      now: () => now,
+    });
+    const [, payloadB64] = jwt.split(".");
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8")) as { exp: number; iat: number };
+    expect(payload.exp).toBe(payload.iat + 86_400);
+  });
+
+  it("accepts a VC that has not yet expired", () => {
+    const issuer = newKeypair();
+    const subject = newKeypair();
+    // Issue with a now slightly in the past — still within the 24h window
+    const issueTime = new Date(Date.now() - 60_000); // 1 min ago
+    const jwt = issueReputationVC({
+      issuerPubkey: issuer.pubkey,
+      issuerSecretKey: issuer.secretKey,
+      subjectPubkey: subject.pubkey,
+      claims: { legsAccepted: 1, legsCompleted: 1, reliabilityScore: 50 },
+      now: () => issueTime,
+    });
+    const res = verifyReputationVC(jwt, issuer.pubkey);
+    expect(res.valid).toBe(true);
+    expect(res.expired).toBeUndefined();
+  });
+
+  it("rejects an expired VC and sets expired: true with the payload", () => {
+    const issuer = newKeypair();
+    const subject = newKeypair();
+    // Issue backdated by 25h — past the 24h TTL
+    const issueTime = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    const jwt = issueReputationVC({
+      issuerPubkey: issuer.pubkey,
+      issuerSecretKey: issuer.secretKey,
+      subjectPubkey: subject.pubkey,
+      claims: { legsAccepted: 3, legsCompleted: 2, reliabilityScore: 60 },
+      now: () => issueTime,
+    });
+    const res = verifyReputationVC(jwt, issuer.pubkey);
+    expect(res.valid).toBe(false);
+    expect(res.expired).toBe(true);
+    expect(res.reason).toBe("expired");
+    // payload must be present so callers can extract the subject for VcExpired event
+    expect(res.payload?.sub).toBe(`did:swarmhaul:${subject.pubkey}`);
+  });
 });

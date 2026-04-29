@@ -22,6 +22,12 @@ import {
   verifyReputationVC,
   pubkeyFromDid,
 } from "../services/did.js";
+import { applyReputationEvent } from "../services/reputation.js";
+
+// One VcValidated event per subject per VC lifetime (24h). Prevents a
+// self-verify loop from inflating reputation without bound.
+const vcValidatedCooldown = new Map<string, number>(); // pubkey → last fired ms
+const VC_VALIDATED_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const PubkeyParam = z.object({
   pubkey: z.string().min(32).max(44),
@@ -119,7 +125,25 @@ export async function didRoutes(app: FastifyInstance) {
       } catch {
         return { valid: false, reason: "invalid base64/json payload" };
       }
-      return verifyReputationVC(jwt, issPubkey);
+      const result = verifyReputationVC(jwt, issPubkey);
+
+      // Fire reputation events on the VC subject — best-effort, non-blocking.
+      if (result.payload?.sub) {
+        try {
+          const subjectPubkey = pubkeyFromDid(result.payload.sub);
+          if (result.valid) {
+            const lastFired = vcValidatedCooldown.get(subjectPubkey) ?? 0;
+            if (Date.now() - lastFired > VC_VALIDATED_COOLDOWN_MS) {
+              vcValidatedCooldown.set(subjectPubkey, Date.now());
+              void applyReputationEvent(subjectPubkey, "VcValidated");
+            }
+          } else if (result.expired) {
+            void applyReputationEvent(subjectPubkey, "VcExpired");
+          }
+        } catch { /* non-swarmhaul DID — ignore */ }
+      }
+
+      return result;
     },
   );
 }

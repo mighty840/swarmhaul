@@ -1,7 +1,7 @@
 # SwarmHaul Reputation System — Spec
 
 **Author:** Sharang Parnerkar
-**Status:** Design spec, partially implemented.
+**Status:** Fully specified. Live events: `ContractCompleted`, `ContractBreached`, `DidPresented`, `VcValidated`, `VcExpired`, `SignatureVerified`, `SignatureFailed`. Pending: `ApiCallSuccess`, `ApiCall500`, `IndirectReferral`, `VcRevoked`.
 
 This document specifies the reputation model used by SwarmHaul to score
 autonomous agents and shippers. The model is designed for peer-to-peer
@@ -115,24 +115,39 @@ source of truth.
 Events have a default signed impact on the score, parameterised at config
 time:
 
-| Event                | Outcome | Default Δ | Notes                                               |
-|----------------------|---------|-----------|-----------------------------------------------------|
-| `DidPresented`       | success | `+0.005`  | Low weight — just showing up                        |
-| `VcValidated`        | success | `+0.02`   | Showing a valid credential from a trusted issuer    |
-| `SignatureVerified`  | success | `+0.01`   | Per signature                                       |
-| `ApiCallSuccess`     | success | `+0.002`  | High-frequency low-weight                          |
-| `ContractCompleted`  | success | `+0.05`   | Significant: finishing a full commitment           |
-| `IndirectReferral`   | success | `+0.005`  | From an actor I already trust                      |
-| —                    | —       | —         | —                                                   |
-| `SignatureFailed`    | failure | `−0.15`   | Invalid signature — trust-destroying               |
-| `VcExpired`          | failure | `−0.10`   | Presenting an expired credential                   |
-| `VcRevoked`          | failure | `−0.40`   | Presenting a revoked credential                    |
-| `ApiCall500`         | failure | `−0.02`   | Per failure; repeated failures compound            |
-| `ContractBreached`   | failure | `−0.80`   | Near-catastrophic; score drops to near-zero        |
+| Event                | Outcome | Default Δ | Live? | Notes                                               |
+|----------------------|---------|-----------|-------|-----------------------------------------------------|
+| `DidPresented`       | success | `+0.005`  | ✅    | Fires once on first `register_agent` call only      |
+| `VcValidated`        | success | `+0.02`   | ✅    | Fires on `POST /did/verify`; max once per 24h per subject |
+| `SignatureVerified`  | success | `+0.01`   | ✅    | On-chain tx confirmed after physical leg confirm    |
+| `ApiCallSuccess`     | success | `+0.002`  | ⏳    | Planned: authenticated API calls                   |
+| `ContractCompleted`  | success | `+0.05`   | ✅    | Digital and physical leg confirmed                 |
+| `IndirectReferral`   | success | `+0.005`  | ⏳    | Planned: vouching endpoint                         |
+| —                    | —       | —         | —     | —                                                   |
+| `SignatureFailed`    | failure | `−0.15`   | ✅    | On-chain tx not found after physical leg confirm    |
+| `VcExpired`          | failure | `−0.10`   | ✅    | Expired VC presented to `POST /did/verify`         |
+| `VcRevoked`          | failure | `−0.40`   | ⏳    | Planned: requires revocation registry              |
+| `ApiCall500`         | failure | `−0.02`   | ⏳    | Planned: authenticated API calls                   |
+| `ContractBreached`   | failure | `−0.80`   | ✅    | Shipper dispute, auto-timeout, or failed digital leg |
 
 The exact deltas are configurable per deployment. The **ratios** are the
 invariant: a single `ContractBreached` undoes roughly 16 `ContractCompleted`
 events.
+
+### 3.1 Abuse resistance
+
+Two events that could otherwise be spammed to inflate reputation have
+hard rate limits:
+
+- **`DidPresented`** fires at most **once per agent, ever** — only on first
+  registration. Re-calling `register_agent` is a no-op for reputation.
+- **`VcValidated`** fires at most **once per subject per 24 hours** — matching
+  the VC's own 24h TTL. A self-verify loop earns the event at the same rate
+  as a legitimately issued fresh credential: once per day.
+
+These limits make the DID/VC event tier worth roughly `+0.02` per day at most,
+while a single `ContractCompleted` (+0.05) from actual work outpaces
+two days of identity signals. Work is the dominant reputation path.
 
 ---
 

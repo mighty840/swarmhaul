@@ -13,7 +13,7 @@ import {
   LegDisputeBody,
 } from "../schemas/index.js";
 import { broadcast } from "../services/ws-broadcaster.js";
-import { updateReputationOnPhysicalLegComplete } from "../services/reputation.js";
+import { updateReputationOnPhysicalLegComplete, applyReputationEvent } from "../services/reputation.js";
 
 type SwarmParams = z.infer<typeof SwarmIdParam>;
 type LegParams = z.infer<typeof LegIdParam>;
@@ -124,6 +124,23 @@ export async function swarmRoutes(app: FastifyInstance) {
         });
 
       await confirmLegCompletion(leg.id, body.agentPubkey, body.confirmSignature);
+
+      // Async on-chain signature check — non-blocking, fires SignatureVerified/Failed
+      // on the courier's reputation once the RPC lookup settles.
+      if (body.confirmSignature) {
+        const sig = body.confirmSignature;
+        const pubkey = body.agentPubkey;
+        void (async () => {
+          try {
+            const { sdk } = getSolana();
+            const tx = await sdk.connection.getTransaction(sig, {
+              maxSupportedTransactionVersion: 0,
+            });
+            await applyReputationEvent(pubkey, tx ? "SignatureVerified" : "SignatureFailed");
+          } catch { /* best-effort */ }
+        })();
+      }
+
       return { success: true };
     },
   );

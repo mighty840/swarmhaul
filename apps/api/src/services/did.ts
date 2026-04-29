@@ -147,6 +147,7 @@ export interface ReputationVCPayload {
   sub: string;
   iat: number;
   nbf: number;
+  exp: number; // unix seconds — VCs expire after 24h
   jti: string;
   vc: {
     "@context": string[];
@@ -172,11 +173,13 @@ export function issueReputationVC(opts: {
   const issuer = agentDid(opts.issuerPubkey);
   const [rPda] = reputationPda(new PublicKey(opts.subjectPubkey));
 
+  const nowSec = Math.floor(now.getTime() / 1000);
   const payload: ReputationVCPayload = {
     iss: issuer,
     sub: subject,
-    iat: Math.floor(now.getTime() / 1000),
-    nbf: Math.floor(now.getTime() / 1000),
+    iat: nowSec,
+    nbf: nowSec,
+    exp: nowSec + 86_400, // 24h TTL
     jti: `urn:uuid:${crypto.randomUUID()}`,
     vc: {
       "@context": [VC_CONTEXT],
@@ -209,6 +212,7 @@ export function issueReputationVC(opts: {
 export interface VerifyResult {
   valid: boolean;
   reason?: string;
+  expired?: boolean;
   payload?: ReputationVCPayload;
 }
 
@@ -234,6 +238,10 @@ export function verifyReputationVC(jwt: string, issuerPubkey: string): VerifyRes
   if (header.alg !== "EdDSA") {
     return { valid: false, reason: `unsupported alg: ${header.alg}` };
   }
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (payload.exp && payload.exp < nowSec - 60) {
+    return { valid: false, reason: "expired", expired: true, payload };
+  }
   if (payload.iss !== agentDid(issuerPubkey)) {
     return {
       valid: false,
@@ -249,7 +257,6 @@ export function verifyReputationVC(jwt: string, issuerPubkey: string): VerifyRes
     pubkeyBytes,
   );
   if (!ok) return { valid: false, reason: "signature verification failed" };
-  const nowSec = Math.floor(Date.now() / 1000);
   if (payload.nbf && payload.nbf > nowSec + 60) {
     return { valid: false, reason: "not-yet-valid (nbf in the future)" };
   }
