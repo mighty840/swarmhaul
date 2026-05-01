@@ -42,6 +42,9 @@ async function main() {
     "https://api.devnet.solana.com";
   const connection = new Connection(rpcUrl, "confirmed");
   const executorState = createExecutorState();
+  // Track when we last bid on each package to avoid re-bidding before expiry
+  const bidTimestamps = new Map<string, number>();
+  const BID_TTL_MS = 14 * 60 * 1000; // re-bid 1 min before the 15-min expiry
   console.log(`[SwarmHaul Agent] Solana RPC: ${rpcUrl}`);
   console.log(
     `[SwarmHaul Agent] Simulated transit delay: ${config.simTransitDelayMs} ms`,
@@ -76,8 +79,18 @@ async function main() {
           state: executorState,
         });
 
+        // Prune packages that are no longer open so the map doesn't grow forever
+        const openIds = new Set(openPackages.map((p: { id: string }) => p.id));
+        for (const id of bidTimestamps.keys()) {
+          if (!openIds.has(id)) bidTimestamps.delete(id);
+        }
+
         for (const pkg of openPackages) {
           if (pkg.status !== "listed") continue;
+
+          // Skip if we've already placed a bid that hasn't expired yet
+          const lastBid = bidTimestamps.get(pkg.id);
+          if (lastBid && Date.now() - lastBid < BID_TTL_MS) continue;
 
           const leg = computeOptimalLeg(config.itinerary, pkg);
           if (!leg) continue;
@@ -131,6 +144,8 @@ async function main() {
             console.error(
               `[Agent] Bid rejected (${bidRes.status}): ${msg.slice(0, 200)}`,
             );
+          } else {
+            bidTimestamps.set(pkg.id, Date.now());
           }
         }
       } catch (err) {
