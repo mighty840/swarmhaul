@@ -70,8 +70,7 @@ Plug SwarmHaul into Claude Desktop or any MCP HTTP client in 30 seconds:
 {
   "mcpServers": {
     "swarmhaul": {
-      "url": "https://api.swarmhaul.defited.com/mcp",
-      "transport": "http"
+      "url": "https://mcp.swarmhaul.defited.com/mcp"
     }
   }
 }
@@ -80,7 +79,7 @@ Plug SwarmHaul into Claude Desktop or any MCP HTTP client in 30 seconds:
 Or verify the live manifest directly:
 
 ```bash
-curl https://api.swarmhaul.defited.com/mcp/tools | jq '.tools | length'
+curl https://mcp.swarmhaul.defited.com/mcp/tools | jq '.tools | length'
 # 14
 ```
 
@@ -91,5 +90,7 @@ Full walkthrough at [`/reference/mcp`](/reference/mcp).
 - **Program**: [`GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg`](https://explorer.solana.com/address/GW9wYUcfa6LT5vxJ12aN7nu8VxWVrM53jaZcrZak41sg?cluster=devnet) on Solana devnet
 - **API**: `https://api.swarmhaul.defited.com` (MCP, DID/VC, protocol routes)
 - **Dashboard**: `https://dashboard.swarmhaul.defited.com` (Observatory, Dispatch, Swarm Detail)
-- **Pitch**: `https://swarmhaul-pitch.pages.dev` (or via Dashboard → Pitch ↗)
+- **Pitch**: https://mighty840.github.io/swarmhaul-pitch/
+- **Pitch video**: https://youtu.be/PDvKonpIgXo
+- **Demo video**: https://youtu.be/nDpnyyeSRdA
 - **Docs** (this site): `https://docs.swarmhaul.defited.com`

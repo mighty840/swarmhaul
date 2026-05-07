@@ -11,7 +11,7 @@ Date: 2026-05-01
 
 ## CLI Paragraph (single block, no line breaks)
 
-Week 4 hardened the protocol economics. The reputation engine now fires 7 live events: `ContractCompleted`, `ContractBreached`, `DidPresented` (first registration only — re-registering is a no-op), `VcValidated` (max once per 24h per subject, matching the new 24h VC expiry), `VcExpired` (−0.10 for presenting stale credentials), `SignatureVerified`, and `SignatureFailed`. VC-JWTs now carry an `exp` claim and the `POST /did/verify` endpoint returns `{ valid: false, expired: true }` after 24 hours — any agent presenting a stale credential takes a reputation hit. Physical leg dispute is live — shippers have a recourse path and legs auto-timeout to prevent stuck swarms. Digital leg bidding runs a 5-second auction window so agents compete on price rather than first-come-first-served. Reward claim UI is live on the dashboard — devnet SOL earned from on-chain `confirm_leg` events maps 1:1 to mainnet reward, claim window opens 11 May 2026. SwarmHaul is now published to four agent skill registries — ClawHub (OpenClaw + HermesHub), ZeroClaw open-skills, and Smithery. Four agents are live on the devnet leaderboard. Final week: 3-min submission pitch and Colosseum Frontier submission. Dashboard: https://dashboard.swarmhaul.defited.com — Docs: https://docs.swarmhaul.defited.com — Pitch: https://mighty840.github.io/swarmhaul-pitch/ — Update video: [link]
+Week 4 hardened the protocol economics. The reputation engine now fires 7 live events: `ContractCompleted`, `ContractBreached`, `DidPresented` (first registration only — re-registering is a no-op), `VcValidated` (max once per 24h per subject, matching the new 24h VC expiry), `VcExpired` (−0.10 for presenting stale credentials), `SignatureVerified`, and `SignatureFailed`. VC-JWTs now carry an `exp` claim and the `POST /did/verify` endpoint returns `{ valid: false, expired: true }` after 24 hours — any agent presenting a stale credential takes a reputation hit. Physical leg dispute is live — shippers have a recourse path and legs auto-timeout to prevent stuck swarms. Digital leg bidding runs a 5-second auction window so agents compete on price rather than first-come-first-served. Reward claim UI is live on the dashboard — devnet SOL earned from on-chain `confirm_leg` events maps 1:1 to mainnet reward, claim window opens 11 May 2026. SwarmHaul is now published to four agent skill registries — ClawHub (OpenClaw + HermesHub), ZeroClaw open-skills, and Smithery. Five (four anonymous) agents are live on the devnet leaderboard. Final week: 3-min submission pitch and Colosseum Frontier submission. Dashboard: https://dashboard.swarmhaul.defited.com — Docs: https://docs.swarmhaul.defited.com — Pitch: https://mighty840.github.io/swarmhaul-pitch/ — Pitch video: https://youtu.be/PDvKonpIgXo — Demo video: https://youtu.be/nDpnyyeSRdA — Update video: https://youtu.be/pFOgUzISbB0
 
 ---
 
@@ -19,7 +19,7 @@ Week 4 hardened the protocol economics. The reputation engine now fires 7 live e
 
 Week 4. The protocol is hardened. Here's what changed.
 
-We now have four agents live on the leaderboard — two internal, two external. They're bidding, completing legs, and earning devnet SOL tracked from on-chain confirmations. Every SOL earned maps 1:1 to a mainnet claim when the reward window opens on May 11th.
+We now have five agents live on the leaderboard — one my own, and actually four anonymous! They're bidding, completing legs, and earning devnet SOL tracked from on-chain confirmations. Every SOL earned maps 1:1 to a mainnet claim when the reward window opens on May 11th.
 
 On the reputation side — we went from 4 live events to 7. VC-JWTs now have a 24-hour expiry. Presenting an expired credential fires a negative event. Verifying a valid one fires a positive — but only once per 24 hours per subject, so there's no self-verify loop. DidPresented fires exactly once, on first registration. Work is still the dominant path up.
 
@@ -53,6 +53,8 @@ Final week: the 3-minute submission pitch, the Colosseum Frontier form, and gett
 ---
 
 Pitch: https://mighty840.github.io/swarmhaul-pitch/
+Pitch video: https://youtu.be/PDvKonpIgXo
+Demo video: https://youtu.be/nDpnyyeSRdA
 Docs: https://docs.swarmhaul.defited.com
 Dashboard: https://dashboard.swarmhaul.defited.com
-MCP: https://api.swarmhaul.defited.com/mcp/tools
+MCP: https://mcp.swarmhaul.defited.com/mcp

@@ -12,6 +12,7 @@
 **Docs:** https://docs.swarmhaul.defited.com  
 **Pitch:** https://mighty840.github.io/swarmhaul-pitch/  
 **Pitch video:** https://youtu.be/PDvKonpIgXo  
+**Demo video:** https://youtu.be/nDpnyyeSRdA  
 **GitHub:** https://github.com/mighty840/swarmhaul
 
 Built for [SWARM hackathon](https://arena.colosseum.org/) (Colosseum Frontier).
