@@ -1,3 +1,4 @@
+import React from "react";
 import type { AgentReputation, WSEvent } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
 
@@ -186,6 +187,20 @@ const STATUS_COLOR: Record<string, string> = {
   listed: "var(--color-cyan)",
 };
 
+const BOOT_TIME = Date.now();
+
+function useUptime() {
+  const [elapsed, setElapsed] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - BOOT_TIME) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const h = Math.floor(elapsed / 3600).toString().padStart(2, "0");
+  const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, "0");
+  const s = (elapsed % 60).toString().padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
 export function EconomyView({
   stats,
   activity,
@@ -201,6 +216,7 @@ export function EconomyView({
   onOpenSwarm?: (packageId: string) => void;
   onOpenDigitalTask?: (taskId: string) => void;
 }) {
+  const uptime = useUptime();
   if (!stats) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -226,9 +242,7 @@ export function EconomyView({
         <div className="text-right">
           <div className="label mb-1">PROTOCOL UPTIME</div>
           <div className="text-[18px] font-light tabular-nums text-[var(--color-bone)]">
-            {Math.floor(Math.random() * 99 + 1).toString().padStart(2, "0")}:
-            {Math.floor(Math.random() * 60).toString().padStart(2, "0")}:
-            {Math.floor(Math.random() * 60).toString().padStart(2, "0")}
+            {uptime}
           </div>
         </div>
       </div>
