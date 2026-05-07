@@ -14,4 +14,21 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom"],
+          "solana-vendor": [
+            "@solana/web3.js",
+            "@solana/wallet-adapter-base",
+            "@solana/wallet-adapter-react",
+            "@solana/wallet-adapter-react-ui",
+            "@solana/wallet-adapter-wallets",
+          ],
+          "map-vendor": ["leaflet", "react-leaflet"],
+        },
+      },
+    },
+  },
 });
