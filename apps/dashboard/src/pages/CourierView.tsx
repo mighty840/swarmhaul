@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AgentReputation } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
 import { AgentIdentityPanel } from "../components/AgentIdentityPanel.js";
+import { ReputationSparkline } from "../components/ReputationSparkline.js";
 
 const MCP_ENDPOINT =
   import.meta.env.VITE_MCP_URL ??
@@ -101,7 +102,7 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
         {/* Reputation table */}
         <Panel
           title="REPUTATION RANK ▸ ALL AGENTS"
-          meta="EARNINGS TRACKED IN DB · DEVNET-RESET-PROOF"
+          meta="EARNINGS IN DB · HISTORY FROM ON-CHAIN SIGNATURES"
           accent="phosphor"
           className="col-span-12 lg:col-span-7"
         >
@@ -210,6 +211,11 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
                           }}
                         />
                       </div>
+                    </div>
+
+                    {/* Reputation history sparkline */}
+                    <div className="hidden xl:block">
+                      <ReputationSparkline pubkey={agent.agentPubkey} color={color} />
                     </div>
 
                     {/* DID hint — visible on row hover so the leaderboard

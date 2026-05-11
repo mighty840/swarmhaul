@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { PublicKey } from "@solana/web3.js";
 import { prisma } from "../db/client.js";
+import { getSolana } from "../services/solana.js";
+import { reputationPda } from "@swarmhaul/sdk";
 import { ReputationPubkeyParam } from "../schemas/index.js";
 
 type RepParams = z.infer<typeof ReputationPubkeyParam>;
@@ -72,6 +75,101 @@ export async function reputationRoutes(app: FastifyInstance) {
         ),
       );
       return { reset: reset.map((r) => ({ agentPubkey: r.agentPubkey, reliabilityScore: r.reliabilityScore })) };
+    },
+  );
+
+  app.get(
+    "/:pubkey/history",
+    { schema: { params: ReputationPubkeyParam } },
+    async (req, reply) => {
+      const { pubkey } = req.params as RepParams;
+
+      let agentKey: PublicKey;
+      try {
+        agentKey = new PublicKey(pubkey);
+      } catch {
+        return reply.code(400).send({ error: "Invalid pubkey" });
+      }
+
+      const { sdk } = getSolana();
+      const [pda] = reputationPda(agentKey);
+
+      // Fetch up to 100 signatures that wrote to this PDA, newest-first
+      let sigs: { signature: string; blockTime?: number | null }[] = [];
+      try {
+        sigs = await sdk.connection.getSignaturesForAddress(pda, { limit: 100 });
+      } catch {
+        return reply.code(502).send({ error: "RPC unavailable" });
+      }
+
+      if (sigs.length === 0) return { pubkey, events: [] };
+
+      // Fetch transactions in parallel to classify each as assign or confirm
+      const txResults = await Promise.allSettled(
+        sigs.map((s) =>
+          sdk.connection.getParsedTransaction(s.signature, {
+            maxSupportedTransactionVersion: 0,
+            commitment: "confirmed",
+          }),
+        ),
+      );
+
+      type RepEvent = {
+        timestamp: number;
+        type: "assign" | "confirm";
+        sig: string;
+        legsAccepted: number;
+        legsCompleted: number;
+        score: number;
+      };
+
+      // Walk oldest→newest, reconstructing score
+      const events: RepEvent[] = [];
+      let legsAccepted = 0;
+      let legsCompleted = 0;
+
+      // Reverse so we process chronologically
+      const ordered = [...sigs].reverse();
+      const orderedResults = [...txResults].reverse();
+
+      for (let i = 0; i < ordered.length; i++) {
+        const sig = ordered[i];
+        const result = orderedResults[i];
+        const ts = sig.blockTime ?? 0;
+
+        let type: "assign" | "confirm" = "assign";
+        if (result.status === "fulfilled" && result.value) {
+          const logs = result.value.meta?.logMessages ?? [];
+          const isConfirm = logs.some(
+            (l) =>
+              l.includes("Instruction: ConfirmLeg") ||
+              l.includes("Instruction: ConfirmTaskLeg"),
+          );
+          type = isConfirm ? "confirm" : "assign";
+        }
+
+        if (type === "assign") {
+          legsAccepted++;
+        } else {
+          legsCompleted++;
+        }
+
+        const score =
+          legsAccepted === 0
+            ? 0
+            : Math.floor((legsCompleted / legsAccepted) * 100);
+
+        events.push({
+          timestamp: ts,
+          type,
+          sig: sig.signature,
+          legsAccepted,
+          legsCompleted,
+          score,
+        });
+      }
+
+      return { pubkey, events };
     },
   );
 
