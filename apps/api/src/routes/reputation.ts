@@ -1,9 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { PublicKey } from "@solana/web3.js";
 import { prisma } from "../db/client.js";
-import { getSolana } from "../services/solana.js";
-import { reputationPda } from "@swarmhaul/sdk";
+import { applyEvent, DEFAULT_CONFIG } from "../services/reputation-engine.js";
 import { ReputationPubkeyParam } from "../schemas/index.js";
 
 type RepParams = z.infer<typeof ReputationPubkeyParam>;
@@ -81,93 +79,46 @@ export async function reputationRoutes(app: FastifyInstance) {
   app.get(
     "/:pubkey/history",
     { schema: { params: ReputationPubkeyParam } },
-    async (req, reply) => {
+    async (req) => {
       const { pubkey } = req.params as RepParams;
 
-      let agentKey: PublicKey;
-      try {
-        agentKey = new PublicKey(pubkey);
-      } catch {
-        return reply.code(400).send({ error: "Invalid pubkey" });
-      }
-
-      const { sdk } = getSolana();
-      const [pda] = reputationPda(agentKey);
-
-      // Fetch up to 100 signatures that wrote to this PDA, newest-first
-      let sigs: { signature: string; blockTime?: number | null }[] = [];
-      try {
-        sigs = await sdk.connection.getSignaturesForAddress(pda, { limit: 100 });
-      } catch {
-        return reply.code(502).send({ error: "RPC unavailable" });
-      }
-
-      if (sigs.length === 0) return { pubkey, events: [] };
-
-      // Fetch transactions in parallel to classify each as assign or confirm
-      const txResults = await Promise.allSettled(
-        sigs.map((s) =>
-          sdk.connection.getParsedTransaction(s.signature, {
-            maxSupportedTransactionVersion: 0,
-            commitment: "confirmed",
-          }),
-        ),
-      );
+      // Gather every leg completion event from both digital and physical tracks
+      const [digitalLegs, physicalLegs] = await Promise.all([
+        prisma.digitalLeg.findMany({
+          where: { agentPubkey: pubkey, status: "completed", completedAt: { not: null } },
+          select: { completedAt: true },
+        }),
+        prisma.leg.findMany({
+          where: { agentPubkey: pubkey, status: "completed", completedAt: { not: null } },
+          select: { completedAt: true },
+        }),
+      ]);
 
       type RepEvent = {
         timestamp: number;
-        type: "assign" | "confirm";
-        sig: string;
-        legsAccepted: number;
         legsCompleted: number;
         score: number;
       };
 
-      // Walk oldest→newest, reconstructing score
-      const events: RepEvent[] = [];
-      let legsAccepted = 0;
-      let legsCompleted = 0;
+      // Merge and sort all completions chronologically
+      const completions: number[] = [
+        ...digitalLegs.map((l) => l.completedAt!.getTime()),
+        ...physicalLegs.map((l) => l.completedAt!.getTime()),
+      ].sort((a, b) => a - b);
 
-      // Reverse so we process chronologically
-      const ordered = [...sigs].reverse();
-      const orderedResults = [...txResults].reverse();
+      if (completions.length === 0) return { pubkey, events: [] };
 
-      for (let i = 0; i < ordered.length; i++) {
-        const sig = ordered[i];
-        const result = orderedResults[i];
-        const ts = sig.blockTime ?? 0;
-
-        let type: "assign" | "confirm" = "assign";
-        if (result.status === "fulfilled" && result.value) {
-          const logs = result.value.meta?.logMessages ?? [];
-          const isConfirm = logs.some(
-            (l) =>
-              l.includes("Instruction: ConfirmLeg") ||
-              l.includes("Instruction: ConfirmTaskLeg"),
-          );
-          type = isConfirm ? "confirm" : "assign";
-        }
-
-        if (type === "assign") {
-          legsAccepted++;
-        } else {
-          legsCompleted++;
-        }
-
-        const score =
-          legsAccepted === 0
-            ? 0
-            : Math.floor((legsCompleted / legsAccepted) * 100);
-
-        events.push({
-          timestamp: ts,
-          type,
-          sig: sig.signature,
-          legsAccepted,
-          legsCompleted,
-          score,
-        });
-      }
+      // Replay the reputation engine formula for each completion
+      // Matches the exact logic in services/reputation.ts
+      let score = DEFAULT_CONFIG.baseScore;
+      const events: RepEvent[] = completions.map((tsMs) => {
+        score = applyEvent(score, { kind: "ContractCompleted", timestamp: tsMs });
+        return {
+          timestamp: Math.floor(tsMs / 1000),
+          legsCompleted: 0, // unused by frontend
+          score: Math.round(score * 1000) / 10,
+        };
+      });
 
       return { pubkey, events };
     },

@@ -5,9 +5,6 @@ const API_BASE =
 
 type RepEvent = {
   timestamp: number;
-  type: "assign" | "confirm";
-  sig: string;
-  legsAccepted: number;
   legsCompleted: number;
   score: number;
 };
@@ -161,16 +158,15 @@ export function ReputationSparkline({
     );
   }
 
-  const latest = events[events.length - 1];
-  const confirmCount = events.filter((e) => e.type === "confirm").length;
+  const peak = events.length > 0 ? Math.max(...events.map((e) => e.score)).toFixed(1) : "0";
 
   return (
     <div className="flex flex-col items-end gap-1">
       <Sparkline events={events} color={color} />
       <div className="text-[9px] tracking-[0.12em] uppercase font-semibold text-[var(--color-ash)]">
         {events.length === 0
-          ? "NO ON-CHAIN EVENTS"
-          : `${confirmCount} CONFIRMED · PEAK ${latest ? Math.max(...events.map((e) => e.score)) : 0}`}
+          ? "NO EVENTS YET"
+          : `${events.length} LEGS · PEAK ${peak}`}
       </div>
     </div>
   );
