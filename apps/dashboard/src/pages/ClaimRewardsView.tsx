@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ClaimedRewardsPanel } from "../components/ClaimedRewardsPanel.js";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -349,7 +350,7 @@ export function ClaimRewardsView() {
           )}
         </div>
 
-      {publicClaims.length > 0 && <ClaimsTable claims={publicClaims} />}
+      <ClaimedRewardsPanel />
     </div>
   );
   }
@@ -482,7 +483,7 @@ export function ClaimRewardsView() {
         </div>
       </form>
 
-      {publicClaims.length > 0 && <ClaimsTable claims={publicClaims} />}
+      <ClaimedRewardsPanel />
     </div>
   );
 }

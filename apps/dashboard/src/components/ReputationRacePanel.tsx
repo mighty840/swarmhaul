@@ -87,7 +87,16 @@ export function ReputationRacePanel({
                   </div>
 
                   {/* Bar with overlaid pubkey */}
-                  <div className="relative flex-1 h-7 bg-[var(--color-graphite)] border border-[var(--color-line)] overflow-hidden">
+                  <div
+                    className="relative flex-1 h-7 border border-[var(--color-line)] overflow-hidden"
+                    style={{
+                      backgroundColor: "var(--color-graphite)",
+                      backgroundImage:
+                        "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
+                      backgroundSize: "8px 8px, 8px 8px",
+                      backgroundPosition: "0 0, 4px 4px",
+                    }}
+                  >
                     {/* Track grid markers at 25/50/75% */}
                     <div
                       className="absolute inset-y-0 left-1/4 w-px"
