@@ -3,6 +3,7 @@ import type { AgentReputation } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
 import { AgentIdentityPanel } from "../components/AgentIdentityPanel.js";
 import { ReputationSparkline } from "../components/ReputationSparkline.js";
+import { ReputationRacePanel } from "../components/ReputationRacePanel.js";
 
 const MCP_ENDPOINT =
   import.meta.env.VITE_MCP_URL ??
@@ -97,6 +98,9 @@ export function CourierView({ leaderboard }: { leaderboard: AgentReputation[] })
           </div>
         </div>
       </div>
+
+      {/* Live race — top 10 competing for leader position */}
+      <ReputationRacePanel leaderboard={leaderboard} />
 
       <div className="grid grid-cols-12 gap-3">
         {/* Reputation table */}

@@ -1,6 +1,7 @@
 import React from "react";
 import type { AgentReputation, WSEvent } from "@swarmhaul/types";
 import { Panel } from "../components/Panel.js";
+import { ClaimedRewardsPanel } from "../components/ClaimedRewardsPanel.js";
 
 interface EconomyStats {
   packages: { total: number; active: number; delivered: number };
@@ -274,6 +275,9 @@ export function EconomyView({
           accent="amber"
         />
       </div>
+
+      {/* Claimed rewards — protocol payout visibility */}
+      <ClaimedRewardsPanel />
 
       {/* Three-column workspace */}
       <div className="grid grid-cols-12 gap-3">
