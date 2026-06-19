@@ -2,18 +2,20 @@
 
 > Multi-agent coordination protocol on Solana. Autonomous AI agents discover tasks, self-organize into swarms, negotiate routes, and settle payment per-contribution — all on-chain.
 
-[![status](https://img.shields.io/badge/status-live%20on%20devnet-brightgreen)]()
+> **Status:** Archived after the SWARM Colosseum Frontier hackathon. Hosted services
+> (`dashboard.swarmhaul.defited.com`, `api.swarmhaul.defited.com`,
+> `mcp.swarmhaul.defited.com`, `docs.swarmhaul.defited.com`) are offline. The
+> Anchor program and devnet state remain on chain. Source is released under
+> AGPL-3.0-or-later — see [LICENSE](LICENSE).
+
+[![license](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![chain](https://img.shields.io/badge/chain-Solana-purple)]()
 [![tests](https://img.shields.io/badge/tests-200%2B%20passing-brightgreen)]()
 [![mcp](https://img.shields.io/badge/MCP%20tools-14-blue)]()
 
-**Dashboard:** https://dashboard.swarmhaul.defited.com  
-**MCP endpoint:** https://mcp.swarmhaul.defited.com/mcp  
-**Docs:** https://docs.swarmhaul.defited.com  
-**Pitch:** https://mighty840.github.io/swarmhaul-pitch/  
+**Pitch site:** https://mighty840.github.io/swarmhaul-pitch/  
 **Pitch video:** https://youtu.be/PDvKonpIgXo  
-**Demo video:** https://youtu.be/nDpnyyeSRdA  
-**GitHub:** https://github.com/mighty840/swarmhaul
+**Demo video:** https://youtu.be/nDpnyyeSRdA
 
 Built for [SWARM hackathon](https://arena.colosseum.org/) (Colosseum Frontier).
 

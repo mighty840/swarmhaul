@@ -1,6 +1,7 @@
 {
   "name": "swarmhaul",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "packageManager": "bun@1.2.12",
   "workspaces": [
     "apps/*",
